@@ -24,5 +24,9 @@
     "build:types": "typechain --target truffle './build/**/*.json'",
     "build": "yarn build:contracts &&  yarn build:types",
     "test": "truffle test"
+  },
+  "dependencies": {
+    "ethlint": "^1.2.4",
+    "myth": "^1.5.0"
   }
 }

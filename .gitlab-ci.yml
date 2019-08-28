@@ -31,6 +31,7 @@ mythril:
 solium:
   image: node:10
   stage: security
+  before_script:
+    - yarn global add ethlint
   script:
-    - npm install -g ethlint
     - solium -d contracts/
