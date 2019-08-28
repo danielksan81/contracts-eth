@@ -19,12 +19,11 @@ build:
     - yarn build
     - yarn test
 
-#mythril:
- # image: sharathkumaranbu/mythril-ci
-  #stage: security
-  #script:
-    # Not sure whether we should use this image
-    #- myth --truffle
+mythril:
+  image: mythril/myth
+  stage: security
+  script:
+    - myth --truffle
 
 solium:
   image: node:10
