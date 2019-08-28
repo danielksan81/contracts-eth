@@ -1,0 +1,9 @@
+{
+  "name": "adjudicator",
+  "version": "1.0.0",
+  "description": "The adjudicator contract for the perun network, more infos at perun.network",
+  "main": "index.js",
+  "repository": "git@git.cac.informatik.tu-darmstadt.de:perun/adjudicator.git",
+  "author": "info@perun.network",
+  "license": "MIT"
+}
