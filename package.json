@@ -5,5 +5,15 @@
   "main": "index.js",
   "repository": "git@git.cac.informatik.tu-darmstadt.de:perun/adjudicator.git",
   "author": "info@perun.network",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "patch node_modules/truffle-typings/index.d.ts < patches/truffle-typings.d.patch || true",
+    "build:contracts": "truffle compile",
+    "build:types": "typechain --target truffle './build/**/*.json'",
+    "postbuild:types": "sed -i -e 's/BigNumber/BN/g' -e '/bignumber\\.js/d' types/truffle-contracts/index.d.ts",
+    "build:js": "tsc -p .",
+    "build": "yarn build:contracts &&  yarn build:types && yarn build:js",
+    "test": "truffle test"
+  }
+
 }
