@@ -16,6 +16,7 @@ build:
     - sudo apt-get update && sudo apt-get install -y yarn
     - yarn global add truffle typescript
   script:
+    - yarn install
     - yarn build
     - yarn test
 
