@@ -1,0 +1,31 @@
+stages:
+  - build
+  - security
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+  - node_modules/
+  - build/
+
+build:
+  image: node:10
+  stage: build
+  before_script:
+    - yarn global add truffle typescript
+  script:
+    - yarn build
+    - yarn test
+
+#mythril:
+ # image: sharathkumaranbu/mythril-ci
+  #stage: security
+  #script:
+    # Not sure whether we should use this image
+    #- myth --truffle
+
+solium:
+  image: node:10
+  stage: security
+  script:
+    - npm install -g ethlint
+    - solium -d contracts/
