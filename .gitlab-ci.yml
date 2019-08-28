@@ -11,7 +11,7 @@ build:
   image: node:10
   stage: build
   before_script:
-    - apt install yarn
+    - apt-get update && apt-get install -y yarn
     - yarn global add truffle typescript
   script:
     - yarn build
