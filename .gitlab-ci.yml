@@ -18,6 +18,8 @@ build:
   script:
     - yarn install
     - yarn build
+    # temporary workaround
+    - mkdir test
     - yarn test
 
 mythril:
