@@ -1,7 +1,12 @@
+// Copyright (c) 2019 The Perun Authors. All rights reserved.
+// This file is part of go-perun. Use of this source code is governed by a
+// MIT-style license that can be found in the LICENSE file.
+
 pragma solidity 0.5.11;
 pragma experimental ABIEncoderV2;
 import 'openzeppelin-solidity/contracts/math/SafeMath.sol';
 
+// AssetHolder is an abstract contract that holds the funds for a Perun state channel.
 contract AssetHolder {
 
     using SafeMath for uint256;
@@ -75,6 +80,9 @@ contract AssetHolder {
         address payable receiver; // The receiver of the authorization.
         uint256 amount; // The amount that can be withdrawn.
     }
+
+    function deposit(bytes32 participantID, uint256 amount) public payable;
+    function withdraw(bytes memory authorization, bytes memory signature) public;
 
 	event OutcomeSet(
 		bytes32 indexed channelID
