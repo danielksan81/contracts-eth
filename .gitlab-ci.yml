@@ -1,0 +1,37 @@
+stages:
+  - build
+  - security
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+  - node_modules/
+  - build/
+
+build:
+  image: node:10
+  stage: build
+  before_script:
+    - curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+    - echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+    - sudo apt-get update && sudo apt-get install -y yarn
+    - yarn global add truffle typescript
+  script:
+    - yarn install
+    - yarn build
+    - yarn test
+
+mythril:
+  image: mythril/myth
+  stage: security
+  script:
+    - myth --truffle
+  allow_failure: true
+
+solium:
+  image: node:10
+  stage: security
+  before_script:
+    - yarn global add ethlint
+  script:
+    - solium -d contracts/
+  allow_failure: true
