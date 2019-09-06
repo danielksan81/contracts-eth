@@ -16,7 +16,7 @@ contract AssetHolder {
 	// Mapping channelID => settled
 	mapping(bytes32 => bool) public settled;
 
-	address Adjudicator;
+	address public Adjudicator;
 	// Only the adjudicator can call this method.
 	modifier onlyAdjudicator {
 		require(msg.sender == Adjudicator,
@@ -27,7 +27,7 @@ contract AssetHolder {
 	// SetOutcome is called by the Adjudicator to set the final outcome of a channel.
 	function setOutcome(bytes32 channelID, address[] calldata parts, uint256[] calldata newBals) external onlyAdjudicator {
 		assert(parts.length == newBals.length);
-		assert(settled[channelID] = false);
+		assert(settled[channelID] == false);
 
 		uint256 sumHeld = 0;
 		uint256 sumOutcome = 0;
@@ -50,6 +50,7 @@ contract AssetHolder {
 			}
 		}
 		settled[channelID] = true;
+		emit OutcomeSet(channelID);
 	}
 
 	struct Signature {
