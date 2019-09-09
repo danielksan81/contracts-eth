@@ -23,7 +23,13 @@ function Authorize(channelID: string, authorizer: string, receiver: string, amou
 
 async function sign(data: string, account: string) {
   let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
-  console.log(sig);
+  // fix wrong v value (set to 27 or 28)
+  let v = sig.slice(130, 132);
+  if(v == "00"){
+    sig = sig.slice(0,130) + "1b";
+  } else {
+    sig = sig.slice(0,130) + "1c";
+  }
   return sig;
 }
 
