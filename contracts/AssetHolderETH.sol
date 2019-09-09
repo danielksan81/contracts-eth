@@ -17,7 +17,7 @@ contract AssetHolderETH is AssetHolder {
 
     function deposit(bytes32 participantID, uint256 amount) public payable {
     	require(msg.value == amount, 'Insufficent ETH for deposit');
-    	holdings[participantID].add(amount);
+    	holdings[participantID] = holdings[participantID].add(amount);
     	emit Deposited(participantID);
     }
 
@@ -26,12 +26,12 @@ contract AssetHolderETH is AssetHolder {
             authorization,
             (WithdrawalAuth)
         );
-    	require(settled[auth.channelID]);
-    	require(verifySignature(authorization, signature, auth.participant));
-    	bytes32 id = keccak256(abi.encode(auth.channelID, auth.participant));
-    	require(holdings[id] >= auth.amount);
+    	require(settled[auth.channelID], 'channel not settled');
+    	require(verifySignature(authorization, signature, auth.participant), 'signature verification failed');
+    	bytes32 id = keccak256(abi.encodePacked(auth.channelID, auth.participant));
+        require(holdings[id] >= auth.amount, 'insufficient ETH for withdraw');
     	// Decrease holdings, then transfer the money.
-    	holdings[id].sub(auth.amount);
+    	holdings[id] = holdings[id].sub(auth.amount);
     	auth.receiver.transfer(auth.amount);
     }
 }

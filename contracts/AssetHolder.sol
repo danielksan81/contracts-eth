@@ -5,6 +5,7 @@
 pragma solidity 0.5.11;
 pragma experimental ABIEncoderV2;
 import 'openzeppelin-solidity/contracts/math/SafeMath.sol';
+import 'openzeppelin-solidity/contracts/cryptography/ECDSA.sol';
 
 // AssetHolder is an abstract contract that holds the funds for a Perun state channel.
 contract AssetHolder {
@@ -34,7 +35,7 @@ contract AssetHolder {
 
 		bytes32[] memory calculatedIDs = new bytes32[](parts.length);
 		for (uint256 i = 0; i < parts.length; i++) {
-			bytes32 id = keccak256(abi.encode(channelID, parts[i]));
+			bytes32 id = keccak256(abi.encodePacked(channelID, parts[i]));
 			// Save calculated ids to save gas.
 			calculatedIDs[i] = id;
 			// Compute old balances.
@@ -61,15 +62,10 @@ contract AssetHolder {
 
 	// VerifySignature verifies whether a piece of data was signed correctly.
 	function verifySignature(bytes memory data, bytes memory signature, address signer) internal pure returns (bool) {
-		Signature memory sig = abi.decode(
-            signature,
-            (Signature)
-        );
-		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
+	    bytes memory prefix = '\x19Ethereum Signed Message:\n32';
         bytes32 h = keccak256(data);
         bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
-
-        return signer == ecrecover(prefixedHash, sig.v, sig.r, sig.s);
+	    return ECDSA.recover(prefixedHash, signature) == signer;
 	}
 
 

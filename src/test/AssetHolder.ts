@@ -12,25 +12,18 @@ function hash(channelID: string, participant: string) {
   return web3.utils.soliditySha3(channelID, participant);
 }
 
-function Authorize(channelID: string, participant: string, receiver: string, amount: BN) {
-  return web3.eth.abi.encodeParameter(
-    {
-      "ID": 'bytes32'
-      //"participant": 'address',
-      //"receiver": 'address',
-      //"amount": 'uint256'
-    },
-    {
-      "ID": web3.utils.rightPad(channelID, 64)
-     // "participant": participant,
-     // "receiver": receiver,
-     // "amount": amount
-    }
-  );
+function Authorize(channelID: string, authorizer: string, receiver: string, amount: BN) {
+  return web3.eth.abi.encodeParameters(
+    ['bytes32','address','address','uint256'],
+    [web3.utils.rightPad(channelID, 64, "0"),
+    authorizer,
+    receiver,
+    web3.utils.padLeft(amount.toString(), 64, "0")]);
 }
 
 async function sign(data: string, account: string) {
   let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
+  console.log(sig);
   return sig;
 }
 
@@ -51,9 +44,7 @@ contract("AssetHolderETH", async (accounts) => {
 
   async function assertHoldings(id: string, amount: BN) {
     let c = await ah.holdings(id);
-    console.log(c);
-    console.log(amount);
-    assert(amount == toBN(c as unknown as string), "Wrong holdings");
+    assert(amount.toString() == c.toString(), "Wrong holdings");
   }
 
   it("a deposits money into a channel", async () => {
@@ -62,9 +53,9 @@ contract("AssetHolderETH", async (accounts) => {
     truffleAssert.eventEmitted(
       await ah.deposit(id, amount, {value: amount, from: accounts[1]}),
       'Deposited',
-      (ev: any) => { return ev.participantID == id; }
+      (ev: any) => {return ev.participantID == id; }
     );
-    //assertHoldings(id, amount);
+    assertHoldings(id, amount);
   });
 
   it("b deposits money into a channel", async () => {
@@ -75,7 +66,7 @@ contract("AssetHolderETH", async (accounts) => {
       'Deposited',
       (ev: any) => { return ev.participantID == id; }
     );
-    //assertHoldings(id, amount);
+    assertHoldings(id, amount);
   });
 
 let newBalances = [ether(20), ether(10)];
@@ -87,19 +78,19 @@ let newBalances = [ether(20), ether(10)];
       'OutcomeSet' ,
       (ev: any) => { return ev.channelID == channelID }
     );
+    assert(await ah.settled(channelID) == true);
     var i;
     for (i = 0; i < participants.length; i++) {
       let id = hash(channelID, participants[i]);
-      //await assertHoldings(id, newBalances[i]);
+      await assertHoldings(id, newBalances[i]);
     }
-    assert(await ah.settled(channelID) == true);
   });
 
   it("withdraw with allowance", async () => {
-    let authorization = Authorize(channelID, accounts[1], accounts[2], newBalances[0]);
-    let signature = await sign(authorization, accounts[1]);
+    let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
+    let signature = await sign(authorization, participants[0]);
     await truffleAssert.passes(
-      await ah.withdraw(authorization, signature, {from: accounts[2]})
+      await ah.withdraw(authorization, signature, {from: accounts[3]})
     );
   });
 });
