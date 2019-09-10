@@ -41,6 +41,7 @@ contract("AssetHolderETH", async (accounts) => {
   let participants = [accounts[1], accounts[2]];
   let balance = {A: ether(10), B: ether(20)};
   const timeout = 60;
+  let newBalances = [ether(20), ether(10)];
 
   it("account[0] should deploy the AssetHolderETH contract", async () => {
       ah = await AssetHolderETH.deployed();
@@ -52,6 +53,12 @@ contract("AssetHolderETH", async (accounts) => {
     let c = await ah.holdings(id);
     assert(amount.toString() == c.toString(), "Wrong holdings");
   }
+
+  it("set outcome of asset holder not from adjudicator", async () => {
+    truffleAssert.reverts(
+      ah.setOutcome(channelID, participants, newBalances, {from: accounts[1]}),
+    );
+  });
 
   it("a deposits money into a channel", async () => {
     let id = hash(channelID, participants[0]);
@@ -75,7 +82,6 @@ contract("AssetHolderETH", async (accounts) => {
     assertHoldings(id, amount);
   });
 
-let newBalances = [ether(20), ether(10)];
   it("set outcome of the asset holder", async () => {
     assert(newBalances.length == participants.length);
     assert(await ah.settled(channelID) == false);
@@ -92,11 +98,39 @@ let newBalances = [ether(20), ether(10)];
     }
   });
 
-  it("withdraw with allowance", async () => {
+  it("set outcome of asset holder twice", async () => {
+    truffleAssert.fails(
+      ah.setOutcome(channelID, participants, newBalances, {from: accounts[0]}),
+      truffleAssert.ErrorType.INVALID_OPCODE
+    );
+  });
+
+  it("withdraw with invalid signature", async () => {
+    let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
+    let signature = await sign(authorization, participants[1]);
+    await truffleAssert.reverts(
+      ah.withdraw(authorization, signature, {from: accounts[3]})
+    );
+  });
+
+  it("withdraw with valid allowance", async () => {
     let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
     let signature = await sign(authorization, participants[0]);
     await truffleAssert.passes(
       await ah.withdraw(authorization, signature, {from: accounts[3]})
     );
   });
+
+  it("overdraw with valid allowance", async () => {
+    let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
+    let signature = await sign(authorization, participants[0]);
+    await truffleAssert.reverts(
+      ah.withdraw(authorization, signature, {from: accounts[3]})
+    );
+  });
+
+
+
+
+
 });
