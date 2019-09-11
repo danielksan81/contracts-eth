@@ -82,6 +82,24 @@ contract("AssetHolderETH", async (accounts) => {
     assertHoldings(id, amount);
   });
 
+  it("a sends to little money with call", async () => {
+    let id = hash(channelID, participants[0]);
+    truffleAssert.reverts(
+      ah.deposit(id, ether(10), {value: ether(1), from: accounts[1]})
+    );
+    assertHoldings(id, balance.A);
+  });
+
+  it("a tops up her channel", async () => {
+    let id = hash(channelID, participants[0]);
+    truffleAssert.eventEmitted(
+      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
+      'Deposited',
+      (ev: any) => { return ev.participantID == id; }
+    );
+    assertHoldings(id, ether(11));
+  });
+
   it("set outcome of the asset holder", async () => {
     assert(newBalances.length == participants.length);
     assert(await ah.settled(channelID) == false);
@@ -108,6 +126,14 @@ contract("AssetHolderETH", async (accounts) => {
   it("withdraw with invalid signature", async () => {
     let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
     let signature = await sign(authorization, participants[1]);
+    await truffleAssert.reverts(
+      ah.withdraw(authorization, signature, {from: accounts[3]})
+    );
+  });
+
+  it("withdraw with valid signature, invalid balance", async () => {
+    let authorization = Authorize(channelID, participants[0], participants[1], ether(30));
+    let signature = await sign(authorization, participants[0]);
     await truffleAssert.reverts(
       ah.withdraw(authorization, signature, {from: accounts[3]})
     );
