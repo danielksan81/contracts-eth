@@ -60,22 +60,21 @@ contract("AssetHolderETH", async (accounts) => {
     );
   });
 
-  it("a deposits money into a channel", async () => {
+  it("a deposits 9 eth into a channel", async () => {
     let id = hash(channelID, participants[0]);
-    let amount = balance.A;
     truffleAssert.eventEmitted(
-      await ah.deposit(id, amount, {value: amount, from: accounts[1]}),
+      await ah.deposit(id, ether(9), {value: ether(9), from: accounts[1]}),
       'Deposited',
       (ev: any) => {return ev.participantID == id; }
     );
-    assertHoldings(id, amount);
+    assertHoldings(id, ether(9));
   });
 
-  it("b deposits money into a channel", async () => {
+  it("b deposits 20 eth into a channel", async () => {
     let id = hash(channelID, participants[1]);
     let amount = balance.B;
     truffleAssert.eventEmitted(
-      await ah.deposit(id, amount, {value: amount, from: accounts[1]}),
+      await ah.deposit(id, amount, {value: amount, from: accounts[2]}),
       'Deposited',
       (ev: any) => { return ev.participantID == id; }
     );
@@ -87,17 +86,17 @@ contract("AssetHolderETH", async (accounts) => {
     truffleAssert.reverts(
       ah.deposit(id, ether(10), {value: ether(1), from: accounts[1]})
     );
-    assertHoldings(id, balance.A);
+    assertHoldings(id, ether(9));
   });
 
-  it("a tops up her channel", async () => {
+  it("a tops up her channel with 1 eth", async () => {
     let id = hash(channelID, participants[0]);
     truffleAssert.eventEmitted(
       await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
       'Deposited',
       (ev: any) => { return ev.participantID == id; }
     );
-    assertHoldings(id, ether(11));
+    assertHoldings(id, ether(10));
   });
 
   it("set outcome of the asset holder", async () => {
@@ -139,12 +138,26 @@ contract("AssetHolderETH", async (accounts) => {
     );
   });
 
-  it("withdraw with valid allowance", async () => {
-    let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
+  it("a withdraws with valid allowance 20 eth", async () => {
+    let balanceBefore = await web3.eth.getBalance(participants[0]);
+    let authorization = Authorize(channelID, participants[0], participants[0], newBalances[0]);
     let signature = await sign(authorization, participants[0]);
     await truffleAssert.passes(
       await ah.withdraw(authorization, signature, {from: accounts[3]})
     );
+    let balanceAfter = await web3.eth.getBalance(participants[0]);
+    assert(toBN(balanceBefore).add(toBN(ether(20))).eq(toBN(balanceAfter)));
+  });
+
+  it("b withdraws with valid allowance 10 eth", async () => {
+    let balanceBefore = await web3.eth.getBalance(participants[1]);
+    let authorization = Authorize(channelID, participants[1], participants[1], newBalances[1]);
+    let signature = await sign(authorization, participants[1]);
+    await truffleAssert.passes(
+      await ah.withdraw(authorization, signature, {from: accounts[3]})
+    );
+    let balanceAfter = await web3.eth.getBalance(participants[1]);
+    assert(toBN(balanceBefore).add(toBN(ether(10))).eq(toBN(balanceAfter)));
   });
 
   it("overdraw with valid allowance", async () => {
@@ -154,9 +167,5 @@ contract("AssetHolderETH", async (accounts) => {
       ah.withdraw(authorization, signature, {from: accounts[3]})
     );
   });
-
-
-
-
 
 });
