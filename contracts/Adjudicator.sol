@@ -30,8 +30,8 @@ contract Adjudicator {
 	public
 	{
 		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID);
-		require(registry[channelID] == bytes32(0));
+		require(s.channelID == channelID, 'tried registering invalid channelID');
+		require(registry[channelID] == bytes32(0), 'a dispute was already registered');
 		validSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
 	}
@@ -44,10 +44,10 @@ contract Adjudicator {
 		bytes[] memory sigs)
 	public beforeTimeout(timeout)
 	{
-		require(s.version > old.version);
+		require(s.version > old.version, 'only a refutation with a newer state is valid');
 		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID);
-		require(registry[channelID] == stateHash(p, old, timeout));
+		require(s.channelID == channelID, 'tried refutation with invalid channelID');
+		require(registry[channelID] == stateHash(p, old, timeout), 'provided wrong old state/timeout');
 		validSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
 	}
@@ -61,10 +61,10 @@ contract Adjudicator {
 	public beforeTimeout(timeout)
 	{
 		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID);
-		require(registry[channelID] == stateHash(p, old, timeout));
+		require(s.channelID == channelID, 'tried to respond with invalid channelID');
+		require(registry[channelID] == stateHash(p, old, timeout), 'provided wrong old state/timeout');
 		address signer = recoverSigner(s, sig);
-		require(p.participants[s.moverIdx] == signer);
+		require(p.participants[s.moverIdx] == signer, 'moverIdx is not set to the id of the sender');
 		validTransition(p, old, s);
 		storeChallenge(p, s, channelID);
 	}
@@ -97,10 +97,10 @@ contract Adjudicator {
 		PerunTypes.State memory old,
 		PerunTypes.State memory s)
 	internal pure {
-		require(s.version == old.version + 1);
-		require(preservation(old.outcome, s.outcome));
+		require(s.version == old.version + 1, 'can only advance the version counter by one');
+		require(preservation(old.outcome, s.outcome), 'invalid preservation of outcomes');
 		ValidTransitioner va = ValidTransitioner(p.app);
-		require(va.validTransition(old, s));
+		require(va.validTransition(old, s), 'invalid new state');
 	}
 
 	function preservation(
@@ -118,11 +118,11 @@ contract Adjudicator {
 				sumOld = sumOld.add(oldAlloc.balances[i][k]);
 				sumNew = sumNew.add(newAlloc.balances[i][k]);
 			}
-			require(sumOld == sumNew);
+			require(sumOld == sumNew, 'Sum of balances for an asset must be equal');
 		}
 		// SubAlloc's currently not implemented
-		require(oldAlloc.locked.length == 0);
-		require(newAlloc.locked.length == 0);
+		require(oldAlloc.locked.length == 0, 'SubAlloc currently not implemented');
+		require(newAlloc.locked.length == 0, 'SubAlloc currently not implemented');
 	}
 
 	function validSignatures(
@@ -134,7 +134,7 @@ contract Adjudicator {
 		assert(p.participants.length == sigs.length);
 		for (uint256 i = 0; i < sigs.length; i++) {
 			address signer = recoverSigner(s, sigs[i]);
-			require(p.participants[i] == signer);
+			require(p.participants[i] == signer, 'invalid signature');
 		}
 	}
 
