@@ -1,0 +1,152 @@
+// Copyright (c) 2019 The Perun Authors. All rights reserved.
+// This file is part of go-perun. Use of this source code is governed by a
+// MIT-style license that can be found in the LICENSE file.
+
+pragma solidity 0.5.11;
+pragma experimental ABIEncoderV2;
+
+import "./PerunTypes.sol";
+import "./ValidTransition.sol";
+import 'openzeppelin-solidity/contracts/math/SafeMath.sol';
+import 'openzeppelin-solidity/contracts/cryptography/ECDSA.sol';
+
+contract Adjudicator {
+
+	using SafeMath for uint256;
+
+	// Mapping channelID => H(parameters, state, timeout)
+	mapping(bytes32 => bytes32) public registry;
+
+	modifier beforeTimeout(uint256 timeout)
+	{
+		require(now < timeout, 'function called after timeout');
+		_;
+	}
+
+	function register(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s,
+		bytes[] memory sigs)
+	public
+	{
+		bytes32 channelID = calculateChannelID(p);
+		require(s.channelID == channelID);
+		require(registry[channelID] == bytes32(0));
+		validSignatures(p, s, sigs);
+		storeChallenge(p, s, channelID);
+	}
+
+	function refute(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory old,
+		uint256 timeout,
+		PerunTypes.State memory s,
+		bytes[] memory sigs)
+	public beforeTimeout(timeout)
+	{
+		require(s.version > old.version);
+		bytes32 channelID = calculateChannelID(p);
+		require(s.channelID == channelID);
+		require(registry[channelID] == stateHash(p, old, timeout));
+		validSignatures(p, s, sigs);
+		storeChallenge(p, s, channelID);
+	}
+
+	function respond(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory old,
+		uint256 timeout,
+		PerunTypes.State memory s,
+		bytes memory sig)
+	public beforeTimeout(timeout)
+	{
+		bytes32 channelID = calculateChannelID(p);
+		require(s.channelID == channelID);
+		require(registry[channelID] == stateHash(p, old, timeout));
+		address signer = recoverSigner(s, sig);
+		require(p.participants[s.moverIdx] == signer);
+		validTransition(p, old, s);
+		storeChallenge(p, s, channelID);
+	}
+
+	function calculateChannelID(PerunTypes.Params memory p) internal pure returns (bytes32) {
+		return keccak256(abi.encode(p));
+	}
+
+	function storeChallenge(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s,
+		bytes32 channelID)
+	internal
+	{
+		uint256 timeout = now.add(p.challengeDuration);
+		registry[channelID] = stateHash(p, s, timeout);
+	}
+
+	function stateHash(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s,
+		uint256 timeout)
+	internal pure returns (bytes32)
+	{
+		return keccak256(abi.encode(p, s, timeout));
+	}
+
+	function validTransition(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory old,
+		PerunTypes.State memory s)
+	internal pure {
+		require(s.version == old.version + 1);
+		require(preservation(old.outcome, s.outcome));
+		ValidTransitioner va = ValidTransitioner(p.app);
+		require(va.validTransition(old, s));
+	}
+
+	function preservation(
+		PerunTypes.Allocation memory oldAlloc,
+		PerunTypes.Allocation memory newAlloc)
+	internal pure returns (bool)
+	{
+		assert(oldAlloc.assets.length == newAlloc.assets.length);
+		for (uint256 i = 0; i < newAlloc.assets.length; i++) {
+			require(oldAlloc.assets[i] == newAlloc.assets[i]);
+			uint256 sumOld = 0;
+			uint256 sumNew = 0;
+			assert(oldAlloc.balances[i].length == newAlloc.balances[i].length);
+			for (uint256 k = 0; k < newAlloc.balances[i].length; k++) {
+				sumOld = sumOld.add(oldAlloc.balances[i][k]);
+				sumNew = sumNew.add(newAlloc.balances[i][k]);
+			}
+			require(sumOld == sumNew);
+		}
+		// SubAlloc's currently not implemented
+		require(oldAlloc.locked.length == 0);
+		require(newAlloc.locked.length == 0);
+	}
+
+	function validSignatures(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s,
+		bytes[] memory sigs)
+	internal pure
+	{
+		assert(p.participants.length == sigs.length);
+		for (uint256 i = 0; i < sigs.length; i++) {
+			address signer = recoverSigner(s, sigs[i]);
+			require(p.participants[i] == signer);
+		}
+	}
+
+	function recoverSigner(
+		PerunTypes.State memory s,
+		bytes memory sig)
+	internal pure returns (address)
+	{
+		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
+        bytes32 h = keccak256(abi.encode(s));
+        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
+	    return ECDSA.recover(prefixedHash, sig);
+	}
+
+}
