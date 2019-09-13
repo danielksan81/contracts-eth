@@ -7,6 +7,7 @@ pragma experimental ABIEncoderV2;
 
 import "./PerunTypes.sol";
 import "./ValidTransition.sol";
+import "./AssetHolder.sol";
 import 'openzeppelin-solidity/contracts/math/SafeMath.sol';
 import 'openzeppelin-solidity/contracts/cryptography/ECDSA.sol';
 
@@ -69,6 +70,32 @@ contract Adjudicator {
 		storeChallenge(p, s, channelID);
 	}
 
+	function concludeFromChallenge(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s,
+		uint256 timeout)
+	public
+	{
+		require(now > timeout, 'Can only conclude after timeout');
+		bytes32 channelID = calculateChannelID(p);
+		require(registry[channelID] == stateHash(p, s, timeout), 'provided wrong old state/timeout');
+		payout(channelID, p, s);
+	}
+
+	function registerFinalState(
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s,
+		bytes[] memory sigs)
+	public
+	{
+		require(s.isFinal == true, 'only accept final states');
+		bytes32 channelID = calculateChannelID(p);
+		require(s.channelID == channelID, 'tried registering invalid channelID');
+		require(registry[channelID] == bytes32(0), 'a dispute was already registered');
+		validSignatures(p, s, sigs);
+		payout(channelID, p, s);
+	}
+
 	function calculateChannelID(PerunTypes.Params memory p) internal pure returns (bytes32) {
 		return keccak256(abi.encode(p));
 	}
@@ -123,6 +150,19 @@ contract Adjudicator {
 		// SubAlloc's currently not implemented
 		require(oldAlloc.locked.length == 0, 'SubAlloc currently not implemented');
 		require(newAlloc.locked.length == 0, 'SubAlloc currently not implemented');
+	}
+
+
+	function payout(
+		bytes32 channelID,
+		PerunTypes.Params memory p,
+		PerunTypes.State memory s)
+	internal
+	{
+		for (uint256 i = 0; i < s.outcome.assets.length; i++) {
+			AssetHolder a = AssetHolder(s.outcome.assets[i]);
+			a.setOutcome(channelID, p.participants, s.outcome.balances[i]);
+		}
 	}
 
 	function validSignatures(
