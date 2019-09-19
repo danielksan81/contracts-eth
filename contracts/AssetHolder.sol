@@ -54,12 +54,6 @@ contract AssetHolder {
 		emit OutcomeSet(channelID);
 	}
 
-	struct Signature {
-		uint8 v;
-		bytes32 r;
-		bytes32 s;
-	}
-
 	// VerifySignature verifies whether a piece of data was signed correctly.
 	function verifySignature(bytes memory data, bytes memory signature, address signer) internal pure returns (bool) {
 	    bytes memory prefix = '\x19Ethereum Signed Message:\n32';
