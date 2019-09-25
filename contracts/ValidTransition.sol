@@ -10,7 +10,8 @@ import "./PerunTypes.sol";
 interface ValidTransitioner {
 
 	function validTransition(
+	    PerunTypes.Params calldata params,
 		PerunTypes.State calldata from,
 		PerunTypes.State calldata to
-		) external pure returns (bool);
+	) external pure returns (bool);
 }

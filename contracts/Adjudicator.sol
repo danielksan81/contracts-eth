@@ -127,7 +127,7 @@ contract Adjudicator {
 		require(s.version == old.version + 1, 'can only advance the version counter by one');
 		require(preservation(old.outcome, s.outcome), 'invalid preservation of outcomes');
 		ValidTransitioner va = ValidTransitioner(p.app);
-		require(va.validTransition(old, s), 'invalid new state');
+		require(va.validTransition(p, old, s), 'invalid new state');
 	}
 
 	function preservation(
