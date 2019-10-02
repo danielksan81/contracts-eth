@@ -1,5 +1,6 @@
 stages:
   - build
+  - lint
   - security
 cache:
   key: ${CI_COMMIT_REF_SLUG}
@@ -34,4 +35,13 @@ solium:
     - yarn global add ethlint
   script:
     - solium -d contracts/
+  allow_failure: true
+
+solhint:
+  image: node:10
+  stage: lint
+  before_script:
+    - yarn global add solhint
+  script:
+    - solhint "contracts/**/*.sol"
   allow_failure: true
