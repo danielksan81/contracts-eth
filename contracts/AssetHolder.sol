@@ -10,7 +10,7 @@ import 'openzeppelin-solidity/contracts/cryptography/ECDSA.sol';
 // AssetHolder is an abstract contract that holds the funds for a Perun state channel.
 contract AssetHolder {
 
-    using SafeMath for uint256;
+	using SafeMath for uint256;
 
 	// Mapping H(channelID||participant) => money
 	mapping(bytes32 => uint256) public holdings;
@@ -62,24 +62,24 @@ contract AssetHolder {
 
 	// VerifySignature verifies whether a piece of data was signed correctly.
 	function verifySignature(bytes memory data, bytes memory signature, address signer) internal pure returns (bool) {
-	    bytes memory prefix = '\x19Ethereum Signed Message:\n32';
-        bytes32 h = keccak256(data);
-        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
-	    return ECDSA.recover(prefixedHash, signature) == signer;
+		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
+		bytes32 h = keccak256(data);
+		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
+		return ECDSA.recover(prefixedHash, signature) == signer;
 	}
 
 
 	// WithdrawalAuthorization authorizes a on-chain public key to withdraw
 	// from an ephemeral key.
 	struct WithdrawalAuth {
-        bytes32 channelID; // ChannelID that should be spend.
-        address participant; // The account used to sign commitment transitions.
-        address payable receiver; // The receiver of the authorization.
-        uint256 amount; // The amount that can be withdrawn.
-    }
+		bytes32 channelID; // ChannelID that should be spend.
+		address participant; // The account used to sign commitment transitions.
+		address payable receiver; // The receiver of the authorization.
+		uint256 amount; // The amount that can be withdrawn.
+	}
 
-    function deposit(bytes32 participantID, uint256 amount) public payable;
-    function withdraw(bytes memory authorization, bytes memory signature) public;
+	function deposit(bytes32 participantID, uint256 amount) public payable;
+	function withdraw(bytes memory authorization, bytes memory signature) public;
 
 	event OutcomeSet(
 		bytes32 indexed channelID

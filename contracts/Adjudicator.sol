@@ -184,9 +184,9 @@ contract Adjudicator {
 	internal pure returns (address)
 	{
 		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
-        bytes32 h = keccak256(abi.encode(s));
-        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
-	    return ECDSA.recover(prefixedHash, sig);
+		bytes32 h = keccak256(abi.encode(s));
+		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
+		return ECDSA.recover(prefixedHash, sig);
 	}
 
 }
