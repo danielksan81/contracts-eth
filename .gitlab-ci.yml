@@ -35,7 +35,7 @@ solium:
   image: node:10
   stage: security
   before_script:
-    - sudo npm install -g ethlint
+    - npm install -g ethlint
   script:
     - solium -d contracts/
   allow_failure: true
@@ -44,7 +44,7 @@ solhint:
   image: node:10
   stage: lint
   before_script:
-    - sudo npm install -g solhint
+    - npm install -g solhint
   script:
     - solhint "contracts/**/*.sol"
   allow_failure: true
