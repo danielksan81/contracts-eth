@@ -15,11 +15,12 @@ build:
     - curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
     - echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
     - sudo apt-get update && sudo apt-get install -y yarn
-    - yarn global add truffle typescript
+    - yarn global add truffle typescript solidity-coverage npx
   script:
     - yarn install
     - yarn build
     - yarn test
+    - yarn run solidity-coverage
 
 mythril:
   image: "python:3.7"
