@@ -12,29 +12,22 @@ function hash(channelID: string, participant: string) {
   return web3.utils.soliditySha3(channelID, participant);
 }
 
-function Params(app: string, challengeDuration: BN, participants: string[]) {
-  return web3.eth.abi.encodeParameters(
-    ['address','uint256','address[]'],
-    [app,
-    web3.utils.padLeft(challengeDuration.toString(), 64, "0"),
-    participants]);
+function Params(_app: string, _challengeDuration: string, _participants: string[]) {
+  return {app: _app, challengeDuration: _challengeDuration, participants: _participants}
 }
 
-function State(channelID: string, moverIdx: BN, version: BN, outcome: string, appData: string, isFinal: string) {
-  return web3.eth.abi.encodeParameters(
-    ['bytes32','uint64','uint64','bytes','bytes','bool'],
-    [channelID,
-    web3.utils.padLeft(moverIdx.toString(), 64, "0"),
-    web3.utils.padLeft(version.toString(), 64, "0"),
-    outcome,
-    appData,
-    isFinal]);
+function State(_channelID: string, _moverIdx: string, _version: string,
+  _outcome: {assets: string[], balances: string[][], locked: {ID: string, balances: string[]}[]},
+  _appData: string, _isFinal: boolean) {
+  return {channelID: _channelID, moverIdx: _moverIdx, version: _version, outcome: _outcome, appData: _appData, isFinal: _isFinal}
 }
 
-function Allocation(assets: string[], balances: BN[][], locked: string[]) {
-  return web3.eth.abi.encodeParameters(
-    ['address[]','uint256[][]','bytes[]'],
-    [assets, balances, locked]);
+function Allocation(_assets: string[], _balances: string[][], _locked: {ID: string, balances: string[]}[]) {
+  return {assets: _assets, balances: _balances, locked: _locked}
+}
+
+function SubAlloc(id: string, _balances: string[]) {
+  return {ID: id, balances: _balances}
 }
 
 async function sign(data: string, account: string) {
@@ -52,27 +45,30 @@ async function sign(data: string, account: string) {
 function ether(x: number): BN { return web3.utils.toWei(web3.utils.toBN(x), "ether"); }
 
 contract("Adjudicator", async (accounts) => {
-  let ad = await Adjudicator.deployed();
+  let ad: AdjudicatorInstance;
   let channelID = hash("1234", "asdfasdf");
   let participants = [accounts[1], accounts[2]];
   let balance = {A: ether(10), B: ether(20)};
   const timeout = 60;
   let newBalances = [ether(20), ether(10)];
-/*
 
-  it("set outcome of asset holder not from adjudicator", async () => {
+  it("account[0] should deploy the Adjudicator contract", async () => {
+      ad = await Adjudicator.deployed();
+  });
+
+  it("register invalid state", async () => {
+    let params = Params(accounts[0], "1", [accounts[1], accounts[2]]);
+    let suballoc = SubAlloc(accounts[0],[]);
+    let outcome = Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = State(channelID, "0", "0", outcome, "0x00", false);
+    let sigs = ["0x001"]//[sign(state, participants[0]), sign(state, participants[1])];
     truffleAssert.reverts(
-      ah.setOutcome(channelID, participants, newBalances, {from: accounts[1]}),
+      ad.register(
+        params,
+        state,
+        sigs,
+        {from: accounts[1]}),
     );
   });
-  it("a tries to register a wrong state", async () => {
-    let id = hash(channelID, participants[0]);
-    truffleAssert.eventEmitted(
-      await ah.deposit(id, ether(9), {value: ether(9), from: accounts[1]}),
-      'Deposited',
-      (ev: any) => {return ev.participantID == id; }
-    );
-    assertHoldings(id, ether(9));
-  });
-*/
+
 });
