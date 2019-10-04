@@ -8,8 +8,8 @@ pragma experimental ABIEncoderV2;
 library PerunTypes {
 
 	struct Params{
-		address app;
 		uint256 challengeDuration;
+		address app;
 		address[] participants;
 	}
 

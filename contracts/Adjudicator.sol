@@ -18,6 +18,9 @@ contract Adjudicator {
 	// Mapping channelID => H(parameters, state, timeout)
 	mapping(bytes32 => bytes32) public registry;
 
+	event Registered(bytes32 channelID);
+	event Test(bytes a);
+
 	modifier beforeTimeout(uint256 timeout)
 	{
 		require(now < timeout, 'function called after timeout');
@@ -35,6 +38,7 @@ contract Adjudicator {
 		require(registry[channelID] == bytes32(0), 'a dispute was already registered');
 		validSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
+		emit Registered(channelID);
 	}
 
 	function refute(
@@ -97,7 +101,7 @@ contract Adjudicator {
 	}
 
 	function calculateChannelID(PerunTypes.Params memory p) internal pure returns (bytes32) {
-		return keccak256(abi.encode(p));
+		return keccak256(abi.encode(p.challengeDuration, p.app, p.participants));
 	}
 
 	function storeChallenge(
@@ -184,7 +188,10 @@ contract Adjudicator {
 	internal pure returns (address)
 	{
 		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
-		bytes32 h = keccak256(abi.encode(s));
+		bytes memory subAlloc = abi.encode(s.outcome.locked[0].ID, s.outcome.locked[0].balances);
+		bytes memory outcome = abi.encode(s.outcome.assets, s.outcome.balances, subAlloc);
+		bytes memory state = abi.encode(s.channelID, s.moverIdx, s.version, outcome, s.appData, s.isFinal);
+		bytes32 h = keccak256(state);
 		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
 		return ECDSA.recover(prefixedHash, sig);
 	}

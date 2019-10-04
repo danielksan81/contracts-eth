@@ -25,9 +25,9 @@ class Params {
 
   encode() {
     return web3.eth.abi.encodeParameters(
-      ['address','uint256','address[]'],
-      [this.app,
-      web3.utils.padLeft(this.challengeDuration, 64, "0"),
+      ['uint256','address','address[]'],
+      [web3.utils.padLeft(this.challengeDuration, 64, "0"),
+      this.app,
       this.participants]);
   }
 }
@@ -86,12 +86,9 @@ class Allocation {
   }
 
   encode() {
-    var _locked = [];
-      for (var i = 0; i < this.locked.length; i++) {
-        _locked.push(this.locked[i].encode());
-    }
+    var _locked = this.locked[0].encode();
     return web3.eth.abi.encodeParameters(
-      ['address[]','uint256[][]','bytes[]'],
+      ['address[]','uint256[][]','bytes'],
       [this.assets, this.balances, _locked]);
   }
 }
@@ -111,8 +108,8 @@ class SubAlloc {
 
   encode() {
     return web3.eth.abi.encodeParameters(
-      ['address','uint256[]'],
-      [this.id, this.balances]);
+      ['bytes32','uint256[]'],
+      [web3.utils.padRight(this.id, 64, "0"), this.balances]);
   }
 }
 
@@ -145,9 +142,10 @@ contract("Adjudicator", async (accounts) => {
       ad = await Adjudicator.deployed();
   });
 
-  it("register invalid params", async () => {
+  it("register invalid channelID", async () => {
     let params = new Params(accounts[0], "1", [accounts[1], accounts[2]]);
-    let channelID = hash(params.encode());
+    // calculate channelID wrong:
+    let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
     let state = new State(channelID, "0", "0", outcome, "0x00", false);
@@ -161,22 +159,24 @@ contract("Adjudicator", async (accounts) => {
         {from: accounts[1]}),
     );
   });
-/*
-  it("register invalid state", async () => {
-    let params = Params(accounts[0], "1", [accounts[1], accounts[2]]);
-    let channelID = hash(EncodeParams(params));
-    let suballoc = SubAlloc(accounts[0],[]);
-    let outcome = Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
-    let state = State(channelID, "0", "0", outcome, "0x00", false);
-    let sigs = ["0x001"]//[sign(state, participants[0]), sign(state, participants[1])];
-    truffleAssert.reverts(
-      ad.register(
-        params,
-        state,
+
+  it("register valid state", async () => {
+    let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    truffleAssert.eventEmitted(
+      await ad.register(
+        params.serialize(),
+        state.serialize(),
         sigs,
         {from: accounts[1]}),
+      'Registered',
+      (ev: any) => { return ev.channelID == channelID; }
     );
   });
-*/
 
 });
