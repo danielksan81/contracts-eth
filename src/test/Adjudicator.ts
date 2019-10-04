@@ -8,26 +8,116 @@ var web3 = new Web3(Web3.givenProvider || 'http://127.0.0.1:7545/');
 const Adjudicator = artifacts.require<AdjudicatorContract>("Adjudicator");
 const toBN = web3.utils.toBN;
 
-function hash(channelID: string, participant: string) {
-  return web3.utils.soliditySha3(channelID, participant);
+class Params {
+  app: string;
+  challengeDuration: string;
+  participants: string[];
+
+  constructor(_app: string, _challengeDuration: string, _participants: string[]) {
+    this.app = _app;
+    this.challengeDuration = _challengeDuration;
+    this.participants = _participants;
+  }
+
+  serialize() {
+    return {app: this.app, challengeDuration: this.challengeDuration, participants: this.participants};
+  }
+
+  encode() {
+    return web3.eth.abi.encodeParameters(
+      ['address','uint256','address[]'],
+      [this.app,
+      web3.utils.padLeft(this.challengeDuration, 64, "0"),
+      this.participants]);
+  }
 }
 
-function Params(_app: string, _challengeDuration: string, _participants: string[]) {
-  return {app: _app, challengeDuration: _challengeDuration, participants: _participants}
+class State {
+  channelID: string;
+  moverIdx: string;
+  version: string;
+  outcome: Allocation;
+  appData: string;
+  isFinal: boolean;
+
+  constructor(_channelID: string, _moverIdx: string, _version: string, _outcome: Allocation, _appData: string, _isFinal: boolean) {
+    this.channelID = _channelID;
+    this.moverIdx = _moverIdx;
+    this.version = _version;
+    this.outcome = _outcome;
+    this.appData = _appData;
+    this.isFinal = _isFinal;
+  }
+
+  serialize() {
+    return {channelID: this.channelID, moverIdx: this.moverIdx, version: this.version,
+      outcome: this.outcome.serialize(), appData: this.appData, isFinal: this.isFinal}
+  }
+
+  encode() {
+    return web3.eth.abi.encodeParameters(
+      ['bytes32','uint64','uint64','bytes','bytes','bool'],
+      [this.channelID,
+      web3.utils.padLeft(this.moverIdx, 64, "0"),
+      web3.utils.padLeft(this.version, 64, "0"),
+      this.outcome.encode(),
+      this.appData,
+      this.isFinal]);
+  }
 }
 
-function State(_channelID: string, _moverIdx: string, _version: string,
-  _outcome: {assets: string[], balances: string[][], locked: {ID: string, balances: string[]}[]},
-  _appData: string, _isFinal: boolean) {
-  return {channelID: _channelID, moverIdx: _moverIdx, version: _version, outcome: _outcome, appData: _appData, isFinal: _isFinal}
+class Allocation {
+  assets: string[];
+  balances: string[][];
+  locked: SubAlloc[];
+
+  constructor(_assets: string[], _balances: string[][], _locked: SubAlloc[]) {
+    this.assets = _assets;
+    this.balances = _balances;
+    this.locked = _locked;
+  }
+
+  serialize() {
+    var _locked = [];
+      for (var i = 0; i < this.locked.length; i++) {
+        _locked.push(this.locked[i].serialize());
+    }
+    return {assets: this.assets, balances: this.balances, locked: _locked};
+  }
+
+  encode() {
+    var _locked = [];
+      for (var i = 0; i < this.locked.length; i++) {
+        _locked.push(this.locked[i].encode());
+    }
+    return web3.eth.abi.encodeParameters(
+      ['address[]','uint256[][]','bytes[]'],
+      [this.assets, this.balances, _locked]);
+  }
 }
 
-function Allocation(_assets: string[], _balances: string[][], _locked: {ID: string, balances: string[]}[]) {
-  return {assets: _assets, balances: _balances, locked: _locked}
+class SubAlloc {
+  id: string;
+  balances: string[];
+
+  constructor(id: string, _balances: string[]) {
+    this.id = id;
+    this.balances = _balances;
+  }
+
+  serialize() {
+     return {ID: this.id, balances: this.balances};
+  }
+
+  encode() {
+    return web3.eth.abi.encodeParameters(
+      ['address','uint256[]'],
+      [this.id, this.balances]);
+  }
 }
 
-function SubAlloc(id: string, _balances: string[]) {
-  return {ID: id, balances: _balances}
+function hash(message: string) {
+  return web3.utils.soliditySha3(message);
 }
 
 async function sign(data: string, account: string) {
@@ -46,7 +136,6 @@ function ether(x: number): BN { return web3.utils.toWei(web3.utils.toBN(x), "eth
 
 contract("Adjudicator", async (accounts) => {
   let ad: AdjudicatorInstance;
-  let channelID = hash("1234", "asdfasdf");
   let participants = [accounts[1], accounts[2]];
   let balance = {A: ether(10), B: ether(20)};
   const timeout = 60;
@@ -56,8 +145,26 @@ contract("Adjudicator", async (accounts) => {
       ad = await Adjudicator.deployed();
   });
 
+  it("register invalid params", async () => {
+    let params = new Params(accounts[0], "1", [accounts[1], accounts[2]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    truffleAssert.reverts(
+      ad.register(
+        params.serialize(),
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+    );
+  });
+/*
   it("register invalid state", async () => {
     let params = Params(accounts[0], "1", [accounts[1], accounts[2]]);
+    let channelID = hash(EncodeParams(params));
     let suballoc = SubAlloc(accounts[0],[]);
     let outcome = Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
     let state = State(channelID, "0", "0", outcome, "0x00", false);
@@ -70,5 +177,6 @@ contract("Adjudicator", async (accounts) => {
         {from: accounts[1]}),
     );
   });
+*/
 
 });
