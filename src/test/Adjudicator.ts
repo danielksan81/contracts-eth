@@ -179,4 +179,21 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
+  it("registering state twice fails", async () => {
+    let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    await truffleAssert.reverts(
+      ad.register(
+        params.serialize(),
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+    );
+  });
+
 });
