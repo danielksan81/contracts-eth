@@ -20,7 +20,7 @@ contract Adjudicator {
 
 	event Registered(bytes32 channelID);
 	event Stored(bytes32 channelID, uint256 timeout);
-	event Test(bytes a);
+	event Test(uint256 a);
 
 	modifier beforeTimeout(uint256 timeout)
 	{
