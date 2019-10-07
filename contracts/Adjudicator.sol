@@ -154,8 +154,9 @@ contract Adjudicator {
 			require(sumOld == sumNew, 'Sum of balances for an asset must be equal');
 		}
 		// SubAlloc's currently not implemented
-		require(oldAlloc.locked.length == 0, 'SubAlloc currently not implemented');
-		require(newAlloc.locked.length == 0, 'SubAlloc currently not implemented');
+		require(oldAlloc.locked.length == 1, 'SubAlloc currently not implemented');
+		require(newAlloc.locked.length == 1, 'SubAlloc currently not implemented');
+		return true;
 	}
 
 
