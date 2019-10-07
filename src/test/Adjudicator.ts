@@ -160,12 +160,32 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-  it("register valid state", async () => {
+  it("registering state with invalid signatures fails", async () => {
     let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
     let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), accounts[0])];
+    await truffleAssert.reverts(
+      ad.register(
+        params.serialize(),
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+    );
+  });
+
+  let validState: State;
+  var validStateTimeout;
+
+  it("register valid state", async () => {
+    let params = new Params(accounts[0], "15", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     truffleAssert.eventEmitted(
@@ -174,22 +194,83 @@ contract("Adjudicator", async (accounts) => {
         state.serialize(),
         sigs,
         {from: accounts[1]}),
-      'Registered',
-      (ev: any) => { return ev.channelID == channelID; }
+      'Stored',
+      (ev: any) => {
+        validStateTimeout = ev.timeout;
+        return ev.channelID == channelID;
+      }
     );
+    validState = state;
   });
 
   it("registering state twice fails", async () => {
-    let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
+    let params = new Params(accounts[0], "15", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
-    let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let state = new State(channelID, "0", "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
       ad.register(
         params.serialize(),
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+    );
+  });
+
+  it("refuting with old state fails", async () => {
+    let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "3", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    await truffleAssert.reverts(
+      ad.refute(
+        params.serialize(),
+        validState.serialize(),
+        timeout,
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+    );
+  });
+
+  it("refuting with wrong timeout fails", async () => {
+    let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    await truffleAssert.reverts(
+      ad.refute(
+        params.serialize(),
+        validState.serialize(),
+        timeout + "1",
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+    );
+  });
+
+  it("refuting with correct state succeeds", async () => {
+    let params = new Params(accounts[0], "1", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([accounts[0]], [["0"],["0"]], [suballoc]);
+    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    await truffleAssert.reverts(
+      ad.refute(
+        params.serialize(),
+        validState.serialize(),
+        timeout,
         state.serialize(),
         sigs,
         {from: accounts[1]}),

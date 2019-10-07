@@ -19,6 +19,7 @@ contract Adjudicator {
 	mapping(bytes32 => bytes32) public registry;
 
 	event Registered(bytes32 channelID);
+	event Stored(bytes32 channelID, uint256 timeout);
 	event Test(bytes a);
 
 	modifier beforeTimeout(uint256 timeout)
@@ -112,6 +113,7 @@ contract Adjudicator {
 	{
 		uint256 timeout = now.add(p.challengeDuration);
 		registry[channelID] = stateHash(p, s, timeout);
+		emit Stored(channelID, timeout);
 	}
 
 	function stateHash(
