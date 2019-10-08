@@ -20,7 +20,7 @@ contract Adjudicator {
 
 	event Registered(bytes32 channelID);
 	event Stored(bytes32 channelID, uint256 timeout);
-	event Test(uint256 a);
+	event Payout(bytes32 channelID);
 
 	modifier beforeTimeout(uint256 timeout)
 	{
@@ -166,10 +166,12 @@ contract Adjudicator {
 		PerunTypes.State memory s)
 	internal
 	{
+
 		for (uint256 i = 0; i < s.outcome.assets.length; i++) {
 			AssetHolder a = AssetHolder(s.outcome.assets[i]);
 			a.setOutcome(channelID, p.participants, s.outcome.balances[i]);
 		}
+		emit Payout(channelID);
 	}
 
 	function validSignatures(

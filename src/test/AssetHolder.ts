@@ -44,7 +44,7 @@ contract("AssetHolderETH", async (accounts) => {
   let newBalances = [ether(20), ether(10)];
 
   it("account[0] should deploy the AssetHolderETH contract", async () => {
-      ah = await AssetHolderETH.deployed();
+      ah = await AssetHolderETH.new(accounts[0]);
       let adj = await ah.Adjudicator();
       assert(adj == accounts[0]);
   });
@@ -116,9 +116,8 @@ contract("AssetHolderETH", async (accounts) => {
   });
 
   it("set outcome of asset holder twice", async () => {
-    truffleAssert.fails(
-      ah.setOutcome(channelID, participants, newBalances, {from: accounts[0]}),
-      truffleAssert.ErrorType.INVALID_OPCODE
+    await truffleAssert.reverts(
+      ah.setOutcome(channelID, participants, newBalances, {from: accounts[0]})
     );
   });
 

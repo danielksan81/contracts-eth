@@ -27,8 +27,8 @@ contract AssetHolder {
 
 	// SetOutcome is called by the Adjudicator to set the final outcome of a channel.
 	function setOutcome(bytes32 channelID, address[] calldata parts, uint256[] calldata newBals) external onlyAdjudicator {
-		assert(parts.length == newBals.length);
-		assert(settled[channelID] == false);
+		require(parts.length == newBals.length, 'participants length should equal balances');
+		require(settled[channelID] == false, 'trying to set already settled channel');
 
 		uint256 sumHeld = 0;
 		uint256 sumOutcome = 0;
