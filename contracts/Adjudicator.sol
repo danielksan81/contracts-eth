@@ -81,7 +81,7 @@ contract Adjudicator {
 		uint256 timeout)
 	public
 	{
-		require(now > timeout, 'Can only conclude after timeout');
+		require(now >= timeout, 'Can only conclude after timeout');
 		bytes32 channelID = calculateChannelID(p);
 		require(registry[channelID] == stateHash(p, s, timeout), 'provided wrong old state/timeout');
 		payout(channelID, p, s);

@@ -128,6 +128,10 @@ function hashAssetHolder(channelID: string, participant: string) {
   return web3.utils.soliditySha3(channelID, participant);
 }
 
+function Sleep(milliseconds: any) {
+   return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
 async function sign(data: string, account: string) {
   let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
   // fix wrong v value (set to 27 or 28)
@@ -160,6 +164,8 @@ contract("Adjudicator", async (accounts) => {
       ah = await AssetHolderETH.new(ad.address);
       asset = ah.address;
   });
+
+  // Register
 
   it("register invalid channelID", async () => {
     let params = new Params(app, timeout, nonce, [accounts[1], accounts[2]]);
@@ -238,6 +244,8 @@ contract("Adjudicator", async (accounts) => {
         {from: accounts[1]}),
     );
   });
+
+  // refute
 
   it("refuting with old state fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
@@ -340,6 +348,8 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
+// respond
+
   it("respond with incorrect counter fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
@@ -383,6 +393,7 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
+  // Register final state
 
   it("a deposits 1 eth into a channel", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
@@ -419,6 +430,75 @@ contract("Adjudicator", async (accounts) => {
         params.serialize(),
         state.serialize(),
         sigs,
+        {from: accounts[1]}),
+      'Payout',
+      (ev: any) => {
+        return ev.channelID == channelID;
+      }
+    );
+  });
+
+  // Conclude from challenge
+
+  it("register valid state with 1 sec timeout", async () => {
+    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
+    let state = new State(channelID, "0", "4", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    truffleAssert.eventEmitted(
+      await ad.register(
+        params.serialize(),
+        state.serialize(),
+        sigs,
+        {from: accounts[1]}),
+      'Stored',
+      (ev: any) => {
+        validStateTimeout = ev.timeout;
+        validState = state;
+        return ev.channelID == channelID;
+      }
+    );
+  });
+
+  it("a deposits 1 eth into a channel", async () => {
+    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let id = hashAssetHolder(channelID, participants[0]);
+    truffleAssert.eventEmitted(
+      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
+      'Deposited',
+      (ev: any) => {return ev.participantID == id; }
+    );
+  });
+
+  it("b deposits 1 eth into a channel", async () => {
+    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let id = hashAssetHolder(channelID, participants[1]);
+    truffleAssert.eventEmitted(
+      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[2]}),
+      'Deposited',
+      (ev: any) => { return ev.participantID == id; }
+    );
+  });
+
+  it("conclude from challenge after timeout", async () => {
+    await Sleep(1000);
+    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
+    let state = new State(channelID, "0", "4", outcome, "0x00", true);
+    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    truffleAssert.eventEmitted(
+      await ad.concludeFromChallenge(
+        params.serialize(),
+        validState.serialize(),
+        validStateTimeout,
         {from: accounts[1]}),
       'Payout',
       (ev: any) => {
