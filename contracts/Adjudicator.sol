@@ -102,7 +102,7 @@ contract Adjudicator {
 	}
 
 	function calculateChannelID(PerunTypes.Params memory p) internal pure returns (bytes32) {
-		return keccak256(abi.encode(p.challengeDuration, p.app, p.participants));
+		return keccak256(abi.encode(p.challengeDuration, p.nonce, p.app, p.participants));
 	}
 
 	function storeChallenge(

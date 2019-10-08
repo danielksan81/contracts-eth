@@ -15,22 +15,25 @@ const toBN = web3.utils.toBN;
 class Params {
   app: string;
   challengeDuration: string;
+  nonce: string;
   participants: string[];
 
-  constructor(_app: string, _challengeDuration: string, _participants: string[]) {
+  constructor(_app: string, _challengeDuration: string, _nonce: string, _participants: string[]) {
     this.app = _app;
     this.challengeDuration = _challengeDuration;
+    this.nonce = _nonce;
     this.participants = _participants;
   }
 
   serialize() {
-    return {app: this.app, challengeDuration: this.challengeDuration, participants: this.participants};
+    return {app: this.app, challengeDuration: this.challengeDuration, nonce: this.nonce, participants: this.participants};
   }
 
   encode() {
     return web3.eth.abi.encodeParameters(
-      ['uint256','address','address[]'],
+      ['uint256', 'uint256', 'address','address[]'],
       [web3.utils.padLeft(this.challengeDuration, 64, "0"),
+      web3.utils.padLeft(this.nonce, 64, "0"),
       this.app,
       this.participants]);
   }
@@ -147,6 +150,7 @@ contract("Adjudicator", async (accounts) => {
   let participants = [accounts[1], accounts[2]];
   let balance = {A: ether(10), B: ether(20)};
   const timeout = "60";
+  let nonce = "0xB0B0FACE"
   let newBalances = [ether(20), ether(10)];
 
   it("account[0] should deploy the Adjudicator contract", async () => {
@@ -158,7 +162,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("register invalid channelID", async () => {
-    let params = new Params(app, timeout, [accounts[1], accounts[2]]);
+    let params = new Params(app, timeout, nonce, [accounts[1], accounts[2]]);
     // calculate channelID wrong:
     let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
@@ -176,7 +180,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("registering state with invalid signatures fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -196,7 +200,7 @@ contract("Adjudicator", async (accounts) => {
   let validStateTimeout: string;
 
   it("register valid state", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -219,7 +223,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("registering state twice fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -236,7 +240,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("refuting with old state fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -255,7 +259,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("refuting with wrong timeout fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -274,7 +278,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("refuting with wrong channelID fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -293,7 +297,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("refuting with invalid signatures fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -312,7 +316,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("refuting with correct state succeeds", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -337,7 +341,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("respond with incorrect counter fails", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -356,7 +360,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("respond with correct state succeeds", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
@@ -381,7 +385,7 @@ contract("Adjudicator", async (accounts) => {
 
 
   it("a deposits 1 eth into a channel", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let id = hashAssetHolder(channelID, participants[0]);
     truffleAssert.eventEmitted(
@@ -392,7 +396,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("b deposits 1 eth into a channel", async () => {
-    let params = new Params(app, timeout, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let id = hashAssetHolder(channelID, participants[1]);
     truffleAssert.eventEmitted(
@@ -403,7 +407,7 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("register valid final state", async () => {
-    let params = new Params(app, timeout + "1", [participants[0], participants[1]]);
+    let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
