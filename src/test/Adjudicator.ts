@@ -412,6 +412,36 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
+  it("register valid final state should reject wrong signatures", async () => {
+    let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
+    let state = new State(channelID, "0", "4", outcome, "0x00", true);    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), accounts[0]), await sign(state.encode(), participants[1])];
+    await truffleAssert.reverts(
+      ad.registerFinalState(
+        params.serialize(),
+        state.serialize(),
+        sigs,
+         {from: accounts[1]})
+      );
+  });
+
+  it("register valid final state should only accept final states", async () => {
+    let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
+    let state = new State(channelID, "0", "4", outcome, "0x00", false);    let stateHash = hash(state.encode());
+    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    await truffleAssert.reverts(
+      ad.registerFinalState(
+        params.serialize(),
+        state.serialize(),
+        sigs,
+        {from: accounts[1]})
+      );
+  });
+
   it("register valid final state", async () => {
     let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
