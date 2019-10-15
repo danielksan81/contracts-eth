@@ -134,14 +134,9 @@ function Sleep(milliseconds: any) {
 
 async function sign(data: string, account: string) {
   let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
-  // fix wrong v value (set to 27 or 28)
+  // fix wrong v value (add 27)
   let v = sig.slice(130, 132);
-  if(v == "00"){
-    sig = sig.slice(0,130) + "1b";
-  } else {
-    sig = sig.slice(0,130) + "1c";
-  }
-  return sig;
+  return sig.slice(0,130) + (parseInt(v, 16)+27).toString(16);
 }
 
 function ether(x: number): BN { return web3.utils.toWei(web3.utils.toBN(x), "ether"); }
@@ -168,7 +163,7 @@ contract("Adjudicator", async (accounts) => {
   // Register
 
   it("register invalid channelID", async () => {
-    let params = new Params(app, timeout, nonce, [accounts[1], accounts[2]]);
+    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     // calculate channelID wrong:
     let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
@@ -176,7 +171,7 @@ contract("Adjudicator", async (accounts) => {
     let state = new State(channelID, "0", "0", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
-    truffleAssert.reverts(
+    await truffleAssert.reverts(
       ad.register(
         params.serialize(),
         state.serialize(),
@@ -297,7 +292,7 @@ contract("Adjudicator", async (accounts) => {
       ad.refute(
         params.serialize(),
         validState.serialize(),
-        validStateTimeout + "1",
+        validStateTimeout,
         state.serialize(),
         sigs,
         {from: accounts[1]}),
@@ -306,7 +301,7 @@ contract("Adjudicator", async (accounts) => {
 
   it("refuting with invalid signatures fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash("asdf");
+    let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
     let state = new State(channelID, "0", "5", outcome, "0x00", false);
@@ -350,21 +345,21 @@ contract("Adjudicator", async (accounts) => {
 
 // respond
 
-  it("respond with incorrect counter fails", async () => {
+  it("respond with incorrect version fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
     let state = new State(channelID, "0", "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = await sign(state.encode(), participants[0]);
+    let sig = await sign(state.encode(), participants[0]);
     await truffleAssert.reverts(
       ad.respond(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         state.serialize(),
-        sigs,
+        sig,
         {from: accounts[1]}),
       );
   });
@@ -376,14 +371,14 @@ contract("Adjudicator", async (accounts) => {
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
     let state = new State(channelID, "0", "6", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = await sign(state.encode(), participants[0]);
+    let sig = await sign(state.encode(), participants[0]);
     truffleAssert.eventEmitted(
       await ad.respond(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         state.serialize(),
-        sigs,
+        sig,
         {from: accounts[1]}),
       'Stored',
       (ev: any) => {

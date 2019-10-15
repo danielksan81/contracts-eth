@@ -23,14 +23,9 @@ function Authorize(channelID: string, authorizer: string, receiver: string, amou
 
 async function sign(data: string, account: string) {
   let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
-  // fix wrong v value (set to 27 or 28)
+  // fix wrong v value (add 27)
   let v = sig.slice(130, 132);
-  if(v == "00"){
-    sig = sig.slice(0,130) + "1b";
-  } else {
-    sig = sig.slice(0,130) + "1c";
-  }
-  return sig;
+  return sig.slice(0,130) + (parseInt(v, 16)+27).toString(16);
 }
 
 function ether(x: number): BN { return web3.utils.toWei(web3.utils.toBN(x), "ether"); }
@@ -55,14 +50,14 @@ contract("AssetHolderETH", async (accounts) => {
   }
 
   it("set outcome of asset holder not from adjudicator", async () => {
-    truffleAssert.reverts(
+    await truffleAssert.reverts(
       ah.setOutcome(channelID, participants, newBalances, {from: accounts[1]}),
     );
   });
 
   it("a deposits 9 eth into a channel", async () => {
     let id = hash(channelID, participants[0]);
-    truffleAssert.eventEmitted(
+    await truffleAssert.eventEmitted(
       await ah.deposit(id, ether(9), {value: ether(9), from: accounts[1]}),
       'Deposited',
       (ev: any) => {return ev.participantID == id; }
@@ -73,7 +68,7 @@ contract("AssetHolderETH", async (accounts) => {
   it("b deposits 20 eth into a channel", async () => {
     let id = hash(channelID, participants[1]);
     let amount = balance.B;
-    truffleAssert.eventEmitted(
+    await truffleAssert.eventEmitted(
       await ah.deposit(id, amount, {value: amount, from: accounts[2]}),
       'Deposited',
       (ev: any) => { return ev.participantID == id; }
@@ -83,7 +78,7 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("a sends to little money with call", async () => {
     let id = hash(channelID, participants[0]);
-    truffleAssert.reverts(
+    await truffleAssert.reverts(
       ah.deposit(id, ether(10), {value: ether(1), from: accounts[1]})
     );
     assertHoldings(id, ether(9));
@@ -91,7 +86,7 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("a tops up her channel with 1 eth", async () => {
     let id = hash(channelID, participants[0]);
-    truffleAssert.eventEmitted(
+    await truffleAssert.eventEmitted(
       await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
       'Deposited',
       (ev: any) => { return ev.participantID == id; }
@@ -102,7 +97,7 @@ contract("AssetHolderETH", async (accounts) => {
   it("set outcome of the asset holder", async () => {
     assert(newBalances.length == participants.length);
     assert(await ah.settled(channelID) == false);
-    truffleAssert.eventEmitted(
+    await truffleAssert.eventEmitted(
       await ah.setOutcome(channelID, participants, newBalances, {from: accounts[0]}),
       'OutcomeSet' ,
       (ev: any) => { return ev.channelID == channelID }

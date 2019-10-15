@@ -8,19 +8,21 @@ pragma experimental ABIEncoderV2;
 import "./PerunTypes.sol";
 import "./ValidTransition.sol";
 import "./AssetHolder.sol";
-import 'openzeppelin-solidity/contracts/math/SafeMath.sol';
-import 'openzeppelin-solidity/contracts/cryptography/ECDSA.sol';
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
 contract Adjudicator {
 
 	using SafeMath for uint256;
 
 	// Mapping channelID => H(parameters, state, timeout)
-	mapping(bytes32 => bytes32) public registry;
+	mapping(bytes32 => bytes32) public disputeRegistry;
 
-	event Registered(bytes32 channelID);
-	event Stored(bytes32 channelID, uint256 timeout);
-	event Payout(bytes32 channelID);
+	event Registered(bytes32 indexed channelID, uint256 version);
+	event Refuted(bytes32 indexed channelID, uint256 version);
+	event Responded(bytes32 indexed channelID, uint256 version);
+	event Stored(bytes32 indexed channelID, uint256 timeout);
+	event Payout(bytes32 indexed channelID);
 
 	modifier beforeTimeout(uint256 timeout)
 	{
@@ -36,10 +38,10 @@ contract Adjudicator {
 	{
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried registering invalid channelID');
-		require(registry[channelID] == bytes32(0), 'a dispute was already registered');
+		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
 		validSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
-		emit Registered(channelID);
+		emit Registered(channelID, s.version);
 	}
 
 	function refute(
@@ -53,9 +55,10 @@ contract Adjudicator {
 		require(s.version > old.version, 'only a refutation with a newer state is valid');
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried refutation with invalid channelID');
-		require(registry[channelID] == stateHash(p, old, timeout), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, old, timeout), 'provided wrong old state/timeout');
 		validSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
+		emit Refuted(channelID, s.version);
 	}
 
 	function respond(
@@ -68,11 +71,12 @@ contract Adjudicator {
 	{
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried to respond with invalid channelID');
-		require(registry[channelID] == stateHash(p, old, timeout), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, old, timeout), 'provided wrong old state/timeout');
 		address signer = recoverSigner(s, sig);
 		require(p.participants[s.moverIdx] == signer, 'moverIdx is not set to the id of the sender');
 		validTransition(p, old, s);
 		storeChallenge(p, s, channelID);
+		emit Responded(channelID, s.version);
 	}
 
 	function concludeFromChallenge(
@@ -83,7 +87,7 @@ contract Adjudicator {
 	{
 		require(now >= timeout, 'Can only conclude after timeout');
 		bytes32 channelID = calculateChannelID(p);
-		require(registry[channelID] == stateHash(p, s, timeout), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, s, timeout), 'provided wrong old state/timeout');
 		payout(channelID, p, s);
 	}
 
@@ -96,7 +100,7 @@ contract Adjudicator {
 		require(s.isFinal == true, 'only accept final states');
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried registering invalid channelID');
-		require(registry[channelID] == bytes32(0), 'a dispute was already registered');
+		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
 		validSignatures(p, s, sigs);
 		payout(channelID, p, s);
 	}
@@ -112,11 +116,11 @@ contract Adjudicator {
 	internal
 	{
 		uint256 timeout = now.add(p.challengeDuration);
-		registry[channelID] = stateHash(p, s, timeout);
+		disputeRegistry[channelID] = hashDispute(p, s, timeout);
 		emit Stored(channelID, timeout);
 	}
 
-	function stateHash(
+	function hashDispute(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
 		uint256 timeout)
@@ -143,7 +147,7 @@ contract Adjudicator {
 	{
 		assert(oldAlloc.assets.length == newAlloc.assets.length);
 		for (uint256 i = 0; i < newAlloc.assets.length; i++) {
-			require(oldAlloc.assets[i] == newAlloc.assets[i]);
+			require(oldAlloc.assets[i] == newAlloc.assets[i], 'invalid assets must be equal');
 			uint256 sumOld = 0;
 			uint256 sumNew = 0;
 			assert(oldAlloc.balances[i].length == newAlloc.balances[i].length);

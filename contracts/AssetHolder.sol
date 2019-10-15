@@ -54,12 +54,6 @@ contract AssetHolder {
 		emit OutcomeSet(channelID);
 	}
 
-	struct Signature {
-		uint8 v;
-		bytes32 r;
-		bytes32 s;
-	}
-
 	// VerifySignature verifies whether a piece of data was signed correctly.
 	function verifySignature(bytes memory data, bytes memory signature, address signer) internal pure returns (bool) {
 		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
@@ -81,11 +75,7 @@ contract AssetHolder {
 	function deposit(bytes32 participantID, uint256 amount) public payable;
 	function withdraw(bytes memory authorization, bytes memory signature) public;
 
-	event OutcomeSet(
-		bytes32 indexed channelID
-	);
+	event OutcomeSet(bytes32 indexed channelID);
 
-	event Deposited(
-		bytes32 indexed participantID
-	);
+	event Deposited(bytes32 indexed participantID);
 }
