@@ -73,7 +73,7 @@ contract Adjudicator {
 		require(s.channelID == channelID, 'tried to respond with invalid channelID');
 		require(disputeRegistry[channelID] == hashDispute(p, old, timeout), 'provided wrong old state/timeout');
 		address signer = recoverSigner(s, sig);
-		require(p.participants[s.moverIdx] == signer, 'moverIdx is not set to the id of the sender');
+		require(p.participants[old.moverIdx] == signer, 'moverIdx is not set to the id of the sender');
 		validTransition(p, old, s);
 		storeChallenge(p, s, channelID);
 		emit Responded(channelID, s.version);
@@ -202,7 +202,9 @@ contract Adjudicator {
 		bytes memory state = abi.encode(s.channelID, s.moverIdx, s.version, outcome, s.appData, s.isFinal);
 		bytes32 h = keccak256(state);
 		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
-		return ECDSA.recover(prefixedHash, sig);
+		address recoveredAddr = ECDSA.recover(prefixedHash, sig);
+		require(recoveredAddr != address(0));
+		return recoveredAddr;
 	}
 
 }

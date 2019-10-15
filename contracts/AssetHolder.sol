@@ -59,7 +59,9 @@ contract AssetHolder {
 		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
 		bytes32 h = keccak256(data);
 		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
-		return ECDSA.recover(prefixedHash, signature) == signer;
+		address recoveredAddr = ECDSA.recover(prefixedHash, signature);
+		require(recoveredAddr != address(0));
+		return recoveredAddr == signer;
 	}
 
 
