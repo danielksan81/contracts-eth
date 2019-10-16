@@ -22,6 +22,7 @@ contract Adjudicator {
 	event Refuted(bytes32 indexed channelID, uint256 version);
 	event Responded(bytes32 indexed channelID, uint256 version);
 	event Stored(bytes32 indexed channelID, uint256 timeout);
+	event FinalStateRegistered(bytes32 indexed channelID);
 	event Payout(bytes32 indexed channelID);
 
 	modifier beforeTimeout(uint256 timeout)
@@ -39,7 +40,7 @@ contract Adjudicator {
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried registering invalid channelID');
 		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
-		validSignatures(p, s, sigs);
+		validateSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
 		emit Registered(channelID, s.version);
 	}
@@ -56,7 +57,7 @@ contract Adjudicator {
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried refutation with invalid channelID');
 		require(disputeRegistry[channelID] == hashDispute(p, old, timeout), 'provided wrong old state/timeout');
-		validSignatures(p, s, sigs);
+		validateSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID);
 		emit Refuted(channelID, s.version);
 	}
@@ -79,7 +80,7 @@ contract Adjudicator {
 		emit Responded(channelID, s.version);
 	}
 
-	function concludeFromChallenge(
+	function concludeChallenge(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
 		uint256 timeout)
@@ -101,8 +102,9 @@ contract Adjudicator {
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried registering invalid channelID');
 		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
-		validSignatures(p, s, sigs);
+		validateSignatures(p, s, sigs);
 		payout(channelID, p, s);
+		emit FinalStateRegistered(channelID);
 	}
 
 	function calculateChannelID(PerunTypes.Params memory p) internal pure returns (bytes32) {
@@ -133,24 +135,28 @@ contract Adjudicator {
 		PerunTypes.Params memory p,
 		PerunTypes.State memory old,
 		PerunTypes.State memory s)
-	internal pure {
+	internal pure
+	{
 		require(s.version == old.version + 1, 'can only advance the version counter by one');
-		require(preservation(old.outcome, s.outcome), 'invalid preservation of outcomes');
+		checkAssetPreservation(old.outcome, s.outcome, p.participants.length);
 		ValidTransitioner va = ValidTransitioner(p.app);
 		require(va.validTransition(p, old, s), 'invalid new state');
 	}
 
-	function preservation(
+	function checkAssetPreservation(
 		PerunTypes.Allocation memory oldAlloc,
-		PerunTypes.Allocation memory newAlloc)
-	internal pure returns (bool)
+		PerunTypes.Allocation memory newAlloc,
+		uint256 participantsLength)
+	internal pure
 	{
+		assert(oldAlloc.balances.length == newAlloc.balances.length);
 		assert(oldAlloc.assets.length == newAlloc.assets.length);
 		for (uint256 i = 0; i < newAlloc.assets.length; i++) {
-			require(oldAlloc.assets[i] == newAlloc.assets[i], 'invalid assets must be equal');
+			require(oldAlloc.assets[i] == newAlloc.assets[i], 'asset addresses mismatch');
 			uint256 sumOld = 0;
 			uint256 sumNew = 0;
 			assert(oldAlloc.balances[i].length == newAlloc.balances[i].length);
+			assert(oldAlloc.balances[i].length == participantsLength);
 			for (uint256 k = 0; k < newAlloc.balances[i].length; k++) {
 				sumOld = sumOld.add(oldAlloc.balances[i][k]);
 				sumNew = sumNew.add(newAlloc.balances[i][k]);
@@ -160,7 +166,6 @@ contract Adjudicator {
 		// SubAlloc's currently not implemented
 		require(oldAlloc.locked.length == 1, 'SubAlloc currently not implemented');
 		require(newAlloc.locked.length == 1, 'SubAlloc currently not implemented');
-		return true;
 	}
 
 
@@ -170,15 +175,15 @@ contract Adjudicator {
 		PerunTypes.State memory s)
 	internal
 	{
-
 		for (uint256 i = 0; i < s.outcome.assets.length; i++) {
 			AssetHolder a = AssetHolder(s.outcome.assets[i]);
+			assert(s.outcome.balances[i].length == p.participants.length);
 			a.setOutcome(channelID, p.participants, s.outcome.balances[i]);
 		}
 		emit Payout(channelID);
 	}
 
-	function validSignatures(
+	function validateSignatures(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
 		bytes[] memory sigs)

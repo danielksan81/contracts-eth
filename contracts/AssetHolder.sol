@@ -74,7 +74,7 @@ contract AssetHolder {
 		uint256 amount; // The amount that can be withdrawn.
 	}
 
-	function deposit(bytes32 participantID, uint256 amount) public payable;
+	function deposit(bytes32 participantID, uint256 amount) external payable;
 	function withdraw(bytes memory authorization, bytes memory signature) public;
 
 	event OutcomeSet(bytes32 indexed channelID);

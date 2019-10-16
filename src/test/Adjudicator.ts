@@ -520,7 +520,7 @@ contract("Adjudicator", async (accounts) => {
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     truffleAssert.eventEmitted(
-      await ad.concludeFromChallenge(
+      await ad.concludeChallenge(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,

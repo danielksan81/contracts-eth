@@ -15,7 +15,10 @@ contract AssetHolderETH is AssetHolder {
 		Adjudicator = _adjudicator;
 	}
 
-	function deposit(bytes32 participantID, uint256 amount) public payable {
+	// Deposit is used to deposit money into a channel
+	// The parameter participantID = H(channelID||address)
+	// This hides both the channelID as well as the participant address until a channel is settled.
+	function deposit(bytes32 participantID, uint256 amount) external payable {
 		require(msg.value == amount, 'Insufficent ETH for deposit');
 		holdings[participantID] = holdings[participantID].add(amount);
 		emit Deposited(participantID);
