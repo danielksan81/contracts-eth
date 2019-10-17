@@ -15,22 +15,29 @@ contract Adjudicator {
 
 	using SafeMath for uint256;
 
-	// Mapping channelID => H(parameters, state, timeout)
+	// Mapping channelID => H(parameters, state, timeout).
 	mapping(bytes32 => bytes32) public disputeRegistry;
 
+	// Events used by the contract.
 	event Registered(bytes32 indexed channelID, uint256 version);
 	event Refuted(bytes32 indexed channelID, uint256 version);
 	event Responded(bytes32 indexed channelID, uint256 version);
 	event Stored(bytes32 indexed channelID, uint256 timeout);
 	event FinalStateRegistered(bytes32 indexed channelID);
+	event Concluded(bytes32 indexed channelID);
 	event Payout(bytes32 indexed channelID);
 
+	// Restricts functions to only be called before a certain timeout.
 	modifier beforeTimeout(uint256 timeout)
 	{
 		require(now < timeout, 'function called after timeout');
 		_;
 	}
 
+	// Register registers a non-final state of a channel.
+	// It can only be called if no other dispute is currently in progress.
+	// The caller has to provide n signatures on the state.
+	// If the call was sucessful a Registered event is emitted.
 	function register(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
@@ -45,6 +52,10 @@ contract Adjudicator {
 		emit Registered(channelID, s.version);
 	}
 
+	// Refute is called to refute a dispute.
+	// It can only be called with a higher state.
+	// The caller has to provide n signatures on the new state.
+	// If the call was sucessful a Refuted event is emitted.
 	function refute(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory old,
@@ -62,6 +73,11 @@ contract Adjudicator {
 		emit Refuted(channelID, s.version);
 	}
 
+	// Respond is used to advance the state of an app on-chain.
+	// It corresponds to the force-move functionality of magmo.
+	// The caller only has to provide a valid signature from the mover.
+	// This method can only advance the state by one.
+	// If the call was successful, a Responded event is emitted.
 	function respond(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory old,
@@ -80,6 +96,9 @@ contract Adjudicator {
 		emit Responded(channelID, s.version);
 	}
 
+	// ConcludeChallenge is used to finalize a channel on-chain.
+	// It can only be called after the timeout is over.
+	// If the call was successful, a Concluded event is emitted.
 	function concludeChallenge(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
@@ -90,8 +109,13 @@ contract Adjudicator {
 		bytes32 channelID = calculateChannelID(p);
 		require(disputeRegistry[channelID] == hashDispute(p, s, timeout), 'provided wrong old state/timeout');
 		payout(channelID, p, s);
+		emit Concluded(channelID);
 	}
 
+	// RegisterFinalState can be used to register a final state.
+	// The caller has to provide n signatures on a finalized state.
+	// It can only be called, if no other dispute was registered.
+	// If the call was successful, a FinalStateRegistered event is emitted.
 	function registerFinalState(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
