@@ -26,11 +26,19 @@ contract AssetHolder {
 	}
 
 	// SetOutcome is called by the Adjudicator to set the final outcome of a channel.
-	function setOutcome(bytes32 channelID, address[] calldata parts, uint256[] calldata newBals) external onlyAdjudicator {
+	function setOutcome(
+		bytes32 channelID,
+		address[] calldata parts,
+		uint256[] calldata newBals,
+		bytes32[] calldata subAllocs,
+		uint256[] calldata subBalances)
+	external onlyAdjudicator {
 		require(parts.length == newBals.length, 'participants length should equal balances');
+		require(subAllocs.length == subBalances.length, 'length of subAllocs and subBalances should be equal');
 		require(settled[channelID] == false, 'trying to set already settled channel');
 
-		uint256 sumHeld = 0;
+		// The channelID itself might already be funded
+		uint256 sumHeld = holdings[channelID];
 		uint256 sumOutcome = 0;
 
 		bytes32[] memory calculatedIDs = new bytes32[](parts.length);
@@ -44,10 +52,18 @@ contract AssetHolder {
 			sumOutcome = sumOutcome.add(newBals[i]);
 		}
 
+		for (uint256 i = 0; i < subAllocs.length; i++) {
+			sumOutcome = sumOutcome.add(subBalances[i]);
+		}
+
 		// We allow overfunding channels, who overfunds loses their funds.
 		if (sumHeld >= sumOutcome) {
 			for (uint256 i = 0; i < parts.length; i++) {
 				holdings[calculatedIDs[i]] = newBals[i];
+			}
+			for (uint256 i = 0; i < subAllocs.length; i++) {
+				// use add to prevent grieving
+				holdings[subAllocs[i]] = holdings[subAllocs[i]].add(subBalances[i]);
 			}
 		}
 		settled[channelID] = true;

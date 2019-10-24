@@ -185,11 +185,13 @@ contract Adjudicator {
 				sumOld = sumOld.add(oldAlloc.balances[i][k]);
 				sumNew = sumNew.add(newAlloc.balances[i][k]);
 			}
+			// Add the sums of all subAllocs
+			for (uint256 k = 0; k < oldAlloc.locked.length; k++) {
+				sumOld = sumOld.add(oldAlloc.locked[k].balances[i]);
+				sumNew = sumNew.add(newAlloc.locked[k].balances[i]);
+			}
 			require(sumOld == sumNew, 'Sum of balances for an asset must be equal');
 		}
-		// SubAlloc's currently not implemented
-		require(oldAlloc.locked.length == 1, 'SubAlloc currently not implemented');
-		require(newAlloc.locked.length == 1, 'SubAlloc currently not implemented');
 	}
 
 
@@ -199,10 +201,24 @@ contract Adjudicator {
 		PerunTypes.State memory s)
 	internal
 	{
+		uint256[][] memory balances = new uint256[][](s.outcome.assets.length);
+		bytes32[] memory subAllocs = new bytes32[](s.outcome.locked.length);
+		// Iterate over all subAllocations
+		for(uint256 k = 0; k < s.outcome.locked.length; k++) {
+			subAllocs[k] = s.outcome.locked[k].ID;
+			// Iterate over all Assets
+			for(uint256 i = 0; i < s.outcome.assets.length; i++) {
+				// init subarrays
+				if (k == 0)
+					balances[i] = new uint256[](s.outcome.locked.length);
+				balances[i][k] = balances[i][k].add(s.outcome.locked[k].balances[i]);
+			}
+		}
+
 		for (uint256 i = 0; i < s.outcome.assets.length; i++) {
 			AssetHolder a = AssetHolder(s.outcome.assets[i]);
-			assert(s.outcome.balances[i].length == p.participants.length);
-			a.setOutcome(channelID, p.participants, s.outcome.balances[i]);
+			require(s.outcome.balances[i].length == p.participants.length, 'balances length should match participants length');
+			a.setOutcome(channelID, p.participants, s.outcome.balances[i], subAllocs, balances[i]);
 		}
 		emit Payout(channelID);
 	}

@@ -30,7 +30,9 @@ library PerunTypes {
 	}
 
 	struct SubAlloc {
+		// ID is the channelID of the subchannel
 		bytes32 ID;
+		// balances holds the total balance of the subchannel of every asset.
 		uint256[] balances;
 	}
 

@@ -51,7 +51,7 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("set outcome of asset holder not from adjudicator", async () => {
     await truffleAssert.reverts(
-      ah.setOutcome(channelID, participants, newBalances, {from: accounts[1]}),
+      ah.setOutcome(channelID, participants, newBalances, [], [], {from: accounts[1]}),
     );
   });
 
@@ -98,7 +98,7 @@ contract("AssetHolderETH", async (accounts) => {
     assert(newBalances.length == participants.length);
     assert(await ah.settled(channelID) == false);
     await truffleAssert.eventEmitted(
-      await ah.setOutcome(channelID, participants, newBalances, {from: accounts[0]}),
+      await ah.setOutcome(channelID, participants, newBalances, [], [], {from: accounts[0]}),
       'OutcomeSet' ,
       (ev: any) => { return ev.channelID == channelID }
     );
@@ -112,7 +112,7 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("set outcome of asset holder twice", async () => {
     await truffleAssert.reverts(
-      ah.setOutcome(channelID, participants, newBalances, {from: accounts[0]})
+      ah.setOutcome(channelID, participants, newBalances, [], [], {from: accounts[0]})
     );
   });
 
