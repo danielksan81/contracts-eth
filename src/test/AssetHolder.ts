@@ -162,4 +162,51 @@ contract("AssetHolderETH", async (accounts) => {
     );
   });
 
+  // check withdrawal after a party refuses to deposit funds into asset holder
+  it("a deposits 1 eth into a channel", async () => {
+    let channelID = hash("12345", "asdfasdf");
+    let id = hash(channelID, participants[0]);
+    truffleAssert.eventEmitted(
+      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[3]}),
+      'Deposited',
+      (ev: any) => {return ev.participantID == id; }
+    );
+    assertHoldings(id, ether(1));
+  });
+
+  it("set outcome of the asset holder with deposit refusal", async () => {
+    let channelID = hash("12345", "asdfasdf");
+    assert(newBalances.length == participants.length);
+    assert(await ah.settled(channelID) == false);
+    await truffleAssert.eventEmitted(
+      await ah.setOutcome(channelID, participants, newBalances, [], [], {from: accounts[0]}),
+      'OutcomeSet' ,
+      (ev: any) => { return ev.channelID == channelID }
+    );
+    assert(await ah.settled(channelID) == true);
+    let id = hash(channelID, participants[0]);
+    assertHoldings(id, ether(1));
+  });
+
+  it("a fails to withdraw 2 eth after b's deposit refusal", async () => {
+    let channelID = hash("12345", "asdfasdf");
+    let authorization = Authorize(channelID, participants[0], participants[0], ether(2));
+    let signature = await sign(authorization, participants[0]);
+    await truffleAssert.reverts(
+      ah.withdraw(authorization, signature, {from: accounts[3]})
+    );
+  });
+
+  it("a withdraws 1 eth after b's deposit refusal", async () => {
+    let balanceBefore = await web3.eth.getBalance(participants[0]);
+    let channelID = hash("12345", "asdfasdf");
+    let authorization = Authorize(channelID, participants[0], participants[0], ether(1));
+    let signature = await sign(authorization, participants[0]);
+    await truffleAssert.passes(
+      await ah.withdraw(authorization, signature, {from: accounts[3]})
+    );
+    let balanceAfter = await web3.eth.getBalance(participants[0]);
+    assert(toBN(balanceBefore).add(toBN(ether(1))).eq(toBN(balanceAfter)));
+  });
+
 });

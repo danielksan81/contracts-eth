@@ -124,15 +124,6 @@ function hash(message: string) {
   return web3.utils.soliditySha3(message);
 }
 
-function Authorize(channelID: string, authorizer: string, receiver: string, amount: BN) {
-  return web3.eth.abi.encodeParameters(
-    ['bytes32','address','address','uint256'],
-    [web3.utils.rightPad(channelID, 64, "0"),
-    authorizer,
-    receiver,
-    web3.utils.padLeft(amount.toString(), 64, "0")]);
-}
-
 function hashAssetHolder(channelID: string, participant: string) {
   return web3.utils.soliditySha3(channelID, participant);
 }
@@ -541,63 +532,4 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-
-  // check withdrawal after a party refuses to deposit funds into asset holder
-  it("a deposits 1 eth into a channel with deposit refusal", async () => {
-    let params = new Params(app, "1", "0xCAFEC0CA", [accounts[3], accounts[4]]);
-    let channelID = hash(params.encode());
-    let id = hashAssetHolder(channelID, accounts[3]);
-    truffleAssert.eventEmitted(
-      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[3]}),
-      'Deposited',
-      (ev: any) => {return ev.participantID == id; }
-    );
-  });
-
-  it("register final state with deposit refusal", async () => {
-    let params = new Params(app, "1", "0xCAFEC0CA", [accounts[3], accounts[4]]);
-    let channelID = hash(params.encode());
-    let suballoc = new SubAlloc(accounts[0],["0x00"]);
-    let outcome = new Allocation([asset], [[ether(2).toString(), ether(0).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", true);
-    let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), accounts[3]), await sign(state.encode(), accounts[4])];
-    truffleAssert.eventEmitted(
-      await ad.registerFinalState(
-        params.serialize(),
-        state.serialize(),
-        sigs,
-        {from: accounts[1]}),
-      'Payout',
-      (ev: any) => {
-        return ev.channelID == channelID;
-      }
-    );
-  });
-
-  it("a fails to withdraw 2 eth after b's deposit refusal", async () => {
-    let params = new Params(app, "1", "0xCAFEC0CA", [accounts[3], accounts[4]]);
-    let channelID = hash(params.encode());
-    let balanceBefore = await web3.eth.getBalance(accounts[3]);
-    let authorization = Authorize(channelID, accounts[3], accounts[3], ether(2));
-    let signature = await sign(authorization, accounts[3]);
-    await truffleAssert.reverts(
-      ah.withdraw(authorization, signature, {from: accounts[3]}),
-      "insufficient ETH for withdraw"
-    );
-  });
-
-  it("a withdraws 1 eth after b's deposit refusal", async () => {
-    let params = new Params(app, "1", "0xCAFEC0CA", [accounts[3], accounts[4]]);
-    let channelID = hash(params.encode());
-    let balanceBefore = await web3.eth.getBalance(accounts[5]);
-    let authorization = Authorize(channelID, accounts[3], accounts[5], ether(1));
-    let signature = await sign(authorization, accounts[3]);
-    await truffleAssert.passes(
-      await ah.withdraw(authorization, signature, {from: accounts[3]})
-    );
-    let actualBalance = toBN(await web3.eth.getBalance(accounts[5]));
-    let expectedBalance = toBN(balanceBefore).add(toBN(ether(1)));
-    assert(expectedBalance.eq(actualBalance));
-  });
 });
