@@ -84,7 +84,8 @@ module.exports = {
     reporter: 'eth-gas-reporter',
     reporterOptions : {
       // See https://www.npmjs.com/package/eth-gas-reporter
-      gasPrice: 20
+      gasPrice: 20,
+      onlyCalledMethods: false
     }
   },
 

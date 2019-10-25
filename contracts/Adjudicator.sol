@@ -15,6 +15,8 @@ contract Adjudicator {
 
 	using SafeMath for uint256;
 
+	enum DisputeState { DISPUTE, FORCEMOVE }
+
 	// Mapping channelID => H(parameters, state, timeout).
 	mapping(bytes32 => bytes32) public disputeRegistry;
 
@@ -34,6 +36,13 @@ contract Adjudicator {
 		_;
 	}
 
+	// Restricts functions to only be called after a certain timeout.
+	modifier afterTimeout(uint256 timeout)
+	{
+		require(now > timeout, 'function called before timeout');
+		_;
+	}
+
 	// Register registers a non-final state of a channel.
 	// It can only be called if no other dispute is currently in progress.
 	// The caller has to provide n signatures on the state.
@@ -48,7 +57,7 @@ contract Adjudicator {
 		require(s.channelID == channelID, 'tried registering invalid channelID');
 		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
 		validateSignatures(p, s, sigs);
-		storeChallenge(p, s, channelID);
+		storeChallenge(p, s, channelID, DisputeState.DISPUTE);
 		emit Registered(channelID, s.version);
 	}
 
@@ -67,9 +76,9 @@ contract Adjudicator {
 		require(s.version > old.version, 'only a refutation with a newer state is valid');
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried refutation with invalid channelID');
-		require(disputeRegistry[channelID] == hashDispute(p, old, timeout), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, DisputeState.DISPUTE), 'provided wrong old state/timeout');
 		validateSignatures(p, s, sigs);
-		storeChallenge(p, s, channelID);
+		storeChallenge(p, s, channelID, DisputeState.DISPUTE);
 		emit Refuted(channelID, s.version);
 	}
 
@@ -82,17 +91,22 @@ contract Adjudicator {
 		PerunTypes.Params memory p,
 		PerunTypes.State memory old,
 		uint256 timeout,
+		DisputeState disputeState,
 		PerunTypes.State memory s,
 		bytes memory sig)
-	public beforeTimeout(timeout)
+	public
 	{
+		if(disputeState == DisputeState.DISPUTE) {
+			require(now > timeout, 'function called before timeout');
+		}
+
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried to respond with invalid channelID');
-		require(disputeRegistry[channelID] == hashDispute(p, old, timeout), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, disputeState), 'provided wrong old state/timeout');
 		address signer = recoverSigner(s, sig);
 		require(p.participants[old.moverIdx] == signer, 'moverIdx is not set to the id of the sender');
 		validTransition(p, old, s);
-		storeChallenge(p, s, channelID);
+		storeChallenge(p, s, channelID, DisputeState.FORCEMOVE);
 		emit Responded(channelID, s.version);
 	}
 
@@ -102,12 +116,12 @@ contract Adjudicator {
 	function concludeChallenge(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
-		uint256 timeout)
-	public
+		uint256 timeout,
+		DisputeState disputeState)
+	public afterTimeout(timeout)
 	{
-		require(now >= timeout, 'Can only conclude after timeout');
 		bytes32 channelID = calculateChannelID(p);
-		require(disputeRegistry[channelID] == hashDispute(p, s, timeout), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, s, timeout, disputeState), 'provided wrong old state/timeout');
 		payout(channelID, p, s);
 		emit Concluded(channelID);
 	}
@@ -138,21 +152,23 @@ contract Adjudicator {
 	function storeChallenge(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
-		bytes32 channelID)
+		bytes32 channelID,
+		DisputeState disputeState)
 	internal
 	{
 		uint256 timeout = now.add(p.challengeDuration);
-		disputeRegistry[channelID] = hashDispute(p, s, timeout);
+		disputeRegistry[channelID] = hashDispute(p, s, timeout, disputeState);
 		emit Stored(channelID, timeout);
 	}
 
 	function hashDispute(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s,
-		uint256 timeout)
+		uint256 timeout,
+		DisputeState disputeState)
 	internal pure returns (bytes32)
 	{
-		return keccak256(abi.encode(p, s, timeout));
+		return keccak256(abi.encode(p, s, timeout, uint256(disputeState)));
 	}
 
 	function validTransition(

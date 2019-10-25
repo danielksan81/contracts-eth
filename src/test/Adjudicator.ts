@@ -151,6 +151,8 @@ contract("Adjudicator", async (accounts) => {
   const timeout = "60";
   let nonce = "0xB0B0FACE"
   let newBalances = [ether(20), ether(10)];
+  let DISPUTE = 0;
+  let FORCEMOVE = 1;
 
   it("account[0] should deploy the Adjudicator contract", async () => {
       ad = await Adjudicator.new();
@@ -358,13 +360,14 @@ contract("Adjudicator", async (accounts) => {
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
+        DISPUTE,
         state.serialize(),
         sig,
         {from: accounts[1]}),
       );
   });
 
-  it("respond with correct state succeeds", async () => {
+  it("respond before timeout fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
@@ -372,19 +375,15 @@ contract("Adjudicator", async (accounts) => {
     let state = new State(channelID, "0", "6", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
-    truffleAssert.eventEmitted(
-      await ad.respond(
+    await truffleAssert.reverts(
+      ad.respond(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
+        DISPUTE,
         state.serialize(),
         sig,
         {from: accounts[1]}),
-      'Stored',
-      (ev: any) => {
-        validStateTimeout = ev.timeout;
-        return ev.channelID == channelID;
-      }
     );
   });
 
@@ -510,20 +509,43 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-  it("conclude from challenge after timeout", async () => {
+  it("respond with correct state succeeds", async () => {
     await Sleep(1000);
     let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", true);
+    let state = new State(channelID, "0", "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sig = await sign(state.encode(), participants[0]);
+    truffleAssert.eventEmitted(
+      await ad.respond(
+        params.serialize(),
+        validState.serialize(),
+        validStateTimeout,
+        DISPUTE,
+        state.serialize(),
+        sig,
+        {from: accounts[1]}),
+      'Stored',
+      (ev: any) => {
+        validStateTimeout = ev.timeout;
+        validState = state;
+        return ev.channelID == channelID;
+      }
+    );
+  });
+
+  it("conclude from responded challenge after timeout", async () => {
+    await Sleep(2000);
+    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
     truffleAssert.eventEmitted(
       await ad.concludeChallenge(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
+        FORCEMOVE,
         {from: accounts[1]}),
       'Payout',
       (ev: any) => {
