@@ -41,15 +41,13 @@ class Params {
 
 class State {
   channelID: string;
-  moverIdx: string;
   version: string;
   outcome: Allocation;
   appData: string;
   isFinal: boolean;
 
-  constructor(_channelID: string, _moverIdx: string, _version: string, _outcome: Allocation, _appData: string, _isFinal: boolean) {
+  constructor(_channelID: string, _version: string, _outcome: Allocation, _appData: string, _isFinal: boolean) {
     this.channelID = _channelID;
-    this.moverIdx = _moverIdx;
     this.version = _version;
     this.outcome = _outcome;
     this.appData = _appData;
@@ -57,15 +55,14 @@ class State {
   }
 
   serialize() {
-    return {channelID: this.channelID, moverIdx: this.moverIdx, version: this.version,
+    return {channelID: this.channelID, version: this.version,
       outcome: this.outcome.serialize(), appData: this.appData, isFinal: this.isFinal}
   }
 
   encode() {
     return web3.eth.abi.encodeParameters(
-      ['bytes32','uint64','uint64','bytes','bytes','bool'],
+      ['bytes32','uint64','bytes','bytes','bool'],
       [this.channelID,
-      web3.utils.padLeft(this.moverIdx, 64, "0"),
       web3.utils.padLeft(this.version, 64, "0"),
       this.outcome.encode(),
       this.appData,
@@ -170,7 +167,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let state = new State(channelID, "0", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
@@ -187,7 +184,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "0", outcome, "0x00", false);
+    let state = new State(channelID, "0", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), accounts[0])];
     await truffleAssert.reverts(
@@ -207,7 +204,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", false);
+    let state = new State(channelID, "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     truffleAssert.eventEmitted(
@@ -230,7 +227,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", false);
+    let state = new State(channelID, "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
@@ -249,7 +246,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "3", outcome, "0x00", false);
+    let state = new State(channelID, "3", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
@@ -268,7 +265,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
@@ -287,7 +284,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash("asdf");
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
@@ -306,7 +303,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[0])];
     await truffleAssert.reverts(
@@ -325,7 +322,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     truffleAssert.eventEmitted(
@@ -352,7 +349,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     await truffleAssert.reverts(
@@ -362,6 +359,7 @@ contract("Adjudicator", async (accounts) => {
         validStateTimeout,
         DISPUTE,
         state.serialize(),
+        0,
         sig,
         {from: accounts[1]}),
       );
@@ -372,7 +370,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "6", outcome, "0x00", false);
+    let state = new State(channelID, "6", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     await truffleAssert.reverts(
@@ -382,6 +380,7 @@ contract("Adjudicator", async (accounts) => {
         validStateTimeout,
         DISPUTE,
         state.serialize(),
+        0,
         sig,
         {from: accounts[1]}),
     );
@@ -415,7 +414,7 @@ contract("Adjudicator", async (accounts) => {
     let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
     let channelID = hash(params.encode());    let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", true);    let stateHash = hash(state.encode());
+    let state = new State(channelID, "4", outcome, "0x00", true);    let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), accounts[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
       ad.registerFinalState(
@@ -430,7 +429,7 @@ contract("Adjudicator", async (accounts) => {
     let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
     let channelID = hash(params.encode());    let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", false);    let stateHash = hash(state.encode());
+    let state = new State(channelID, "4", outcome, "0x00", false);    let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     await truffleAssert.reverts(
       ad.registerFinalState(
@@ -446,7 +445,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", true);
+    let state = new State(channelID, "4", outcome, "0x00", true);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     truffleAssert.eventEmitted(
@@ -469,7 +468,7 @@ contract("Adjudicator", async (accounts) => {
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "4", outcome, "0x00", false);
+    let state = new State(channelID, "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
     truffleAssert.eventEmitted(
@@ -509,13 +508,34 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-  it("respond with correct state succeeds", async () => {
+  it("respond with invalid signature fails", async () => {
     await Sleep(1000);
     let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
-    let state = new State(channelID, "0", "5", outcome, "0x00", false);
+    let state = new State(channelID, "5", outcome, "0x00", false);
+    let stateHash = hash(state.encode());
+    let sig = await sign(state.encode(), participants[0]);
+    await truffleAssert.reverts(
+      ad.respond(
+        params.serialize(),
+        validState.serialize(),
+        validStateTimeout,
+        DISPUTE,
+        state.serialize(),
+        1,
+        sig,
+        {from: accounts[1]})
+    );
+  });
+
+  it("respond with correct state succeeds", async () => {
+    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
+    let channelID = hash(params.encode());
+    let suballoc = new SubAlloc(accounts[0],["0x00"]);
+    let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], [suballoc]);
+    let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     truffleAssert.eventEmitted(
@@ -525,6 +545,7 @@ contract("Adjudicator", async (accounts) => {
         validStateTimeout,
         DISPUTE,
         state.serialize(),
+        0,
         sig,
         {from: accounts[1]}),
       'Stored',

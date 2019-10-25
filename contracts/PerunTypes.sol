@@ -16,7 +16,6 @@ library PerunTypes {
 
 	struct State {
 		bytes32 channelID;
-		uint64 moverIdx;
 		uint64 version;
 		Allocation outcome;
 		bytes appData;

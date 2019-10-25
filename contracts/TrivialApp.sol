@@ -13,7 +13,8 @@ contract TrivialApp is ValidTransitioner {
 	function validTransition(
 	    PerunTypes.Params calldata params,
 		PerunTypes.State calldata from,
-		PerunTypes.State calldata to)
+		PerunTypes.State calldata to,
+		uint256 moverIdx)
 	external pure returns (bool)
 	{
 	    return true;

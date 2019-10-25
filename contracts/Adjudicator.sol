@@ -76,7 +76,8 @@ contract Adjudicator {
 		require(s.version > old.version, 'only a refutation with a newer state is valid');
 		bytes32 channelID = calculateChannelID(p);
 		require(s.channelID == channelID, 'tried refutation with invalid channelID');
-		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, DisputeState.DISPUTE), 'provided wrong old state/timeout');
+		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, DisputeState.DISPUTE),
+			'provided wrong old state/timeout');
 		validateSignatures(p, s, sigs);
 		storeChallenge(p, s, channelID, DisputeState.DISPUTE);
 		emit Refuted(channelID, s.version);
@@ -93,6 +94,7 @@ contract Adjudicator {
 		uint256 timeout,
 		DisputeState disputeState,
 		PerunTypes.State memory s,
+		uint256 moverIdx,
 		bytes memory sig)
 	public
 	{
@@ -104,8 +106,9 @@ contract Adjudicator {
 		require(s.channelID == channelID, 'tried to respond with invalid channelID');
 		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, disputeState), 'provided wrong old state/timeout');
 		address signer = recoverSigner(s, sig);
-		require(p.participants[old.moverIdx] == signer, 'moverIdx is not set to the id of the sender');
-		validTransition(p, old, s);
+		require(moverIdx < p.participants.length);
+		require(p.participants[moverIdx] == signer, 'moverIdx is not set to the id of the sender');
+		validTransition(p, old, s, moverIdx);
 		storeChallenge(p, s, channelID, DisputeState.FORCEMOVE);
 		emit Responded(channelID, s.version);
 	}
@@ -174,13 +177,14 @@ contract Adjudicator {
 	function validTransition(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory old,
-		PerunTypes.State memory s)
+		PerunTypes.State memory s,
+		uint256 moverIdx)
 	internal pure
 	{
 		require(s.version == old.version + 1, 'can only advance the version counter by one');
 		checkAssetPreservation(old.outcome, s.outcome, p.participants.length);
 		ValidTransitioner va = ValidTransitioner(p.app);
-		require(va.validTransition(p, old, s), 'invalid new state');
+		require(va.validTransition(p, old, s, moverIdx), 'invalid new state');
 	}
 
 	function checkAssetPreservation(
@@ -260,7 +264,7 @@ contract Adjudicator {
 		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
 		bytes memory subAlloc = abi.encode(s.outcome.locked[0].ID, s.outcome.locked[0].balances);
 		bytes memory outcome = abi.encode(s.outcome.assets, s.outcome.balances, subAlloc);
-		bytes memory state = abi.encode(s.channelID, s.moverIdx, s.version, outcome, s.appData, s.isFinal);
+		bytes memory state = abi.encode(s.channelID, s.version, outcome, s.appData, s.isFinal);
 		bytes32 h = keccak256(state);
 		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
 		address recoveredAddr = ECDSA.recover(prefixedHash, sig);
