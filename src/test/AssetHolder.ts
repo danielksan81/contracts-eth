@@ -12,13 +12,35 @@ function hash(channelID: string, participant: string) {
   return web3.utils.soliditySha3(channelID, participant);
 }
 
-function Authorize(channelID: string, authorizer: string, receiver: string, amount: BN) {
-  return web3.eth.abi.encodeParameters(
-    ['bytes32','address','address','uint256'],
-    [web3.utils.rightPad(channelID, 64, "0"),
-    authorizer,
-    receiver,
-    web3.utils.padLeft(amount.toString(), 64, "0")]);
+class Authorization {
+  channelID: string;
+  participant: string;
+  receiver: string;
+  amount: string;
+
+  constructor(_channelID: string, _participant: string, _receiver: string, _amount: string) {
+    this.channelID = _channelID;
+    this.participant = _participant;
+    this.receiver = _receiver;
+    this.amount = _amount;
+  }
+
+  serialize() {
+    return {
+      channelID: this.channelID,
+      participant: this.participant,
+      receiver: this.receiver,
+      amount: this.amount};
+  }
+
+  encode() {
+    return web3.eth.abi.encodeParameters(
+      ['bytes32','address','address','uint256'],
+      [web3.utils.rightPad(this.channelID, 64, "0"),
+      this.participant,
+      this.receiver,
+      web3.utils.padLeft(this.amount, 64, "0")]);
+  }
 }
 
 async function sign(data: string, account: string) {
@@ -117,16 +139,16 @@ contract("AssetHolderETH", async (accounts) => {
   });
 
   it("withdraw with invalid signature", async () => {
-    let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
-    let signature = await sign(authorization, participants[1]);
+    let authorization = new Authorization(channelID, participants[0], participants[1], newBalances[0].toString());
+    let signature = await sign(authorization.encode(), participants[1]);
     await truffleAssert.reverts(
       ah.withdraw(authorization, signature, {from: accounts[3]})
     );
   });
 
   it("withdraw with valid signature, invalid balance", async () => {
-    let authorization = Authorize(channelID, participants[0], participants[1], ether(30));
-    let signature = await sign(authorization, participants[0]);
+    let authorization = new Authorization(channelID, participants[0], participants[1], ether(30).toString());
+    let signature = await sign(authorization.encode(), participants[0]);
     await truffleAssert.reverts(
       ah.withdraw(authorization, signature, {from: accounts[3]})
     );
@@ -134,8 +156,8 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("a withdraws with valid allowance 20 eth", async () => {
     let balanceBefore = await web3.eth.getBalance(participants[0]);
-    let authorization = Authorize(channelID, participants[0], participants[0], newBalances[0]);
-    let signature = await sign(authorization, participants[0]);
+    let authorization = new Authorization(channelID, participants[0], participants[0], newBalances[0].toString());
+    let signature = await sign(authorization.encode(), participants[0]);
     await truffleAssert.passes(
       await ah.withdraw(authorization, signature, {from: accounts[3]})
     );
@@ -145,8 +167,8 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("b withdraws with valid allowance 10 eth", async () => {
     let balanceBefore = await web3.eth.getBalance(participants[1]);
-    let authorization = Authorize(channelID, participants[1], participants[1], newBalances[1]);
-    let signature = await sign(authorization, participants[1]);
+    let authorization = new Authorization(channelID, participants[1], participants[1], newBalances[1].toString());
+    let signature = await sign(authorization.encode(), participants[1]);
     await truffleAssert.passes(
       await ah.withdraw(authorization, signature, {from: accounts[3]})
     );
@@ -155,8 +177,8 @@ contract("AssetHolderETH", async (accounts) => {
   });
 
   it("overdraw with valid allowance", async () => {
-    let authorization = Authorize(channelID, participants[0], participants[1], newBalances[0]);
-    let signature = await sign(authorization, participants[0]);
+    let authorization = new Authorization(channelID, participants[0], participants[1], newBalances[0].toString());
+    let signature = await sign(authorization.encode(), participants[0]);
     await truffleAssert.reverts(
       ah.withdraw(authorization, signature, {from: accounts[3]})
     );
@@ -190,8 +212,8 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("a fails to withdraw 2 eth after b's deposit refusal", async () => {
     let channelID = hash("12345", "asdfasdf");
-    let authorization = Authorize(channelID, participants[0], participants[0], ether(2));
-    let signature = await sign(authorization, participants[0]);
+    let authorization = new Authorization(channelID, participants[0], participants[0], ether(2).toString());
+    let signature = await sign(authorization.encode(), participants[0]);
     await truffleAssert.reverts(
       ah.withdraw(authorization, signature, {from: accounts[3]})
     );
@@ -200,8 +222,8 @@ contract("AssetHolderETH", async (accounts) => {
   it("a withdraws 1 eth after b's deposit refusal", async () => {
     let balanceBefore = await web3.eth.getBalance(participants[0]);
     let channelID = hash("12345", "asdfasdf");
-    let authorization = Authorize(channelID, participants[0], participants[0], ether(1));
-    let signature = await sign(authorization, participants[0]);
+    let authorization = new Authorization(channelID, participants[0], participants[0], ether(1).toString());
+    let signature = await sign(authorization.encode(), participants[0]);
     await truffleAssert.passes(
       await ah.withdraw(authorization, signature, {from: accounts[3]})
     );

@@ -24,17 +24,13 @@ contract AssetHolderETH is AssetHolder {
 		emit Deposited(participantID);
 	}
 
-	function withdraw(bytes memory authorization, bytes memory signature) public {
-		WithdrawalAuth memory auth = abi.decode(
-			authorization,
-			(WithdrawalAuth)
-		);
-		require(settled[auth.channelID], 'channel not settled');
-		require(verifySignature(authorization, signature, auth.participant), 'signature verification failed');
-		bytes32 id = keccak256(abi.encodePacked(auth.channelID, auth.participant));
-		require(holdings[id] >= auth.amount, 'insufficient ETH for withdraw');
+	function withdraw(WithdrawalAuth memory authorization, bytes memory signature) public {
+		require(settled[authorization.channelID], 'channel not settled');
+		require(verifySignature(abi.encode(authorization), signature, authorization.participant), 'signature verification failed');
+		bytes32 id = keccak256(abi.encodePacked(authorization.channelID, authorization.participant));
+		require(holdings[id] >= authorization.amount, 'insufficient ETH for withdraw');
 		// Decrease holdings, then transfer the money.
-		holdings[id] = holdings[id].sub(auth.amount);
-		auth.receiver.transfer(auth.amount);
+		holdings[id] = holdings[id].sub(authorization.amount);
+		authorization.receiver.transfer(authorization.amount);
 	}
 }
