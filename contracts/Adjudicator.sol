@@ -39,7 +39,7 @@ contract Adjudicator {
 	// Restricts functions to only be called after a certain timeout.
 	modifier afterTimeout(uint256 timeout)
 	{
-		require(now > timeout, 'function called before timeout');
+		require(now >= timeout, 'function called before timeout');
 		_;
 	}
 
@@ -99,7 +99,7 @@ contract Adjudicator {
 	public
 	{
 		if(disputeState == DisputeState.DISPUTE) {
-			require(now > timeout, 'function called before timeout');
+			require(now >= timeout, 'function called before timeout');
 		}
 
 		bytes32 channelID = calculateChannelID(p);
