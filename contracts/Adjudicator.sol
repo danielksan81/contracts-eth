@@ -27,7 +27,7 @@ contract Adjudicator {
 	event Stored(bytes32 indexed channelID, uint256 timeout);
 	event FinalStateRegistered(bytes32 indexed channelID);
 	event Concluded(bytes32 indexed channelID);
-	event Payout(bytes32 indexed channelID);
+	event PushOutcome(bytes32 indexed channelID);
 
 	// Restricts functions to only be called before a certain timeout.
 	modifier beforeTimeout(uint256 timeout)
@@ -83,12 +83,12 @@ contract Adjudicator {
 		emit Refuted(channelID, s.version);
 	}
 
-	// Respond is used to advance the state of an app on-chain.
+	// Progress is used to advance the state of an app on-chain.
 	// It corresponds to the force-move functionality of magmo.
 	// The caller only has to provide a valid signature from the mover.
 	// This method can only advance the state by one.
 	// If the call was successful, a Responded event is emitted.
-	function respond(
+	function progress(
 		PerunTypes.Params memory p,
 		PerunTypes.State memory old,
 		uint256 timeout,
@@ -125,7 +125,7 @@ contract Adjudicator {
 	{
 		bytes32 channelID = calculateChannelID(p);
 		require(disputeRegistry[channelID] == hashDispute(p, s, timeout, disputeState), 'provided wrong old state/timeout');
-		payout(channelID, p, s);
+		pushOutcome(channelID, p, s);
 		emit Concluded(channelID);
 	}
 
@@ -144,7 +144,7 @@ contract Adjudicator {
 		require(s.channelID == channelID, 'tried registering invalid channelID');
 		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
 		validateSignatures(p, s, sigs);
-		payout(channelID, p, s);
+		pushOutcome(channelID, p, s);
 		emit FinalStateRegistered(channelID);
 	}
 
@@ -215,7 +215,7 @@ contract Adjudicator {
 	}
 
 
-	function payout(
+	function pushOutcome(
 		bytes32 channelID,
 		PerunTypes.Params memory p,
 		PerunTypes.State memory s)
@@ -240,7 +240,7 @@ contract Adjudicator {
 			require(s.outcome.balances[i].length == p.participants.length, 'balances length should match participants length');
 			a.setOutcome(channelID, p.participants, s.outcome.balances[i], subAllocs, balances[i]);
 		}
-		emit Payout(channelID);
+		emit PushOutcome(channelID);
 	}
 
 	function validateSignatures(

@@ -342,9 +342,9 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-// respond
+// progress
 
-  it("respond with incorrect version fails", async () => {
+  it("progress with incorrect version fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
@@ -353,7 +353,7 @@ contract("Adjudicator", async (accounts) => {
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     await truffleAssert.reverts(
-      ad.respond(
+      ad.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -365,7 +365,7 @@ contract("Adjudicator", async (accounts) => {
       );
   });
 
-  it("respond before timeout fails", async () => {
+  it("progress before timeout fails", async () => {
     let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
@@ -374,7 +374,7 @@ contract("Adjudicator", async (accounts) => {
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     await truffleAssert.reverts(
-      ad.respond(
+      ad.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -454,7 +454,7 @@ contract("Adjudicator", async (accounts) => {
         state.serialize(),
         sigs,
         {from: accounts[1]}),
-      'Payout',
+      'PushOutcome',
       (ev: any) => {
         return ev.channelID == channelID;
       }
@@ -508,7 +508,7 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-  it("respond with invalid signature fails", async () => {
+  it("progress with invalid signature fails", async () => {
     await Sleep(1000);
     let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
@@ -518,7 +518,7 @@ contract("Adjudicator", async (accounts) => {
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     await truffleAssert.reverts(
-      ad.respond(
+      ad.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -530,7 +530,7 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-  it("respond with correct state succeeds", async () => {
+  it("progress with correct state succeeds", async () => {
     let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
     let suballoc = new SubAlloc(accounts[0],["0x00"]);
@@ -539,7 +539,7 @@ contract("Adjudicator", async (accounts) => {
     let stateHash = hash(state.encode());
     let sig = await sign(state.encode(), participants[0]);
     truffleAssert.eventEmitted(
-      await ad.respond(
+      await ad.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -557,7 +557,7 @@ contract("Adjudicator", async (accounts) => {
     );
   });
 
-  it("conclude from responded challenge after timeout", async () => {
+  it("conclude from progressed challenge after timeout", async () => {
     await Sleep(2000);
     let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
     let channelID = hash(params.encode());
@@ -568,7 +568,7 @@ contract("Adjudicator", async (accounts) => {
         validStateTimeout,
         FORCEMOVE,
         {from: accounts[1]}),
-      'Payout',
+      'PushOutcome',
       (ev: any) => {
         return ev.channelID == channelID;
       }
