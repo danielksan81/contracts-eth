@@ -19,5 +19,5 @@
     "types": ["node", "chai", "mocha", "bn.js", "web3","truffle-typings", "truffle-contracts"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "build"]
+  "exclude": ["node_modules", "build", "node_modules/*"]
 }

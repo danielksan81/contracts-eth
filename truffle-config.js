@@ -34,6 +34,7 @@ module.exports = {
    *
    * $ truffle test --network <network-name>
    */
+  plugins: [ "truffle-security"],
 
   networks: {
     // Useful for testing. The `development` name is special - truffle uses it by default
@@ -80,20 +81,26 @@ module.exports = {
   // Set default mocha options here, use special reporters etc.
   mocha: {
     // timeout: 100000
+    reporter: 'eth-gas-reporter',
+    reporterOptions : {
+      // See https://www.npmjs.com/package/eth-gas-reporter
+      gasPrice: 20,
+      onlyCalledMethods: false
+    }
   },
 
   // Configure your compilers
   compilers: {
     solc: {
-      // version: "0.5.1",    // Fetch exact version from solc-bin (default: truffle's version)
-      // docker: true,        // Use "0.5.1" you've installed locally with docker (default: false)
-      // settings: {          // See the solidity docs for advice about optimization and evmVersion
-      //  optimizer: {
-      //    enabled: false,
-      //    runs: 200
-      //  },
-      //  evmVersion: "byzantium"
-      // }
+       version: "0.5.11",    // Fetch exact version from solc-bin (default: truffle's version)
+       //docker: false,        // Use "0.5.1" you've installed locally with docker (default: false)
+       settings: {          // See the solidity docs for advice about optimization and evmVersion
+        optimizer: {
+          enabled: false,
+          runs: 200
+        },
+        evmVersion: "constantinople"
+      }
     }
   }
 }
