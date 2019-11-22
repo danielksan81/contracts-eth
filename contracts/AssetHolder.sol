@@ -80,7 +80,7 @@ contract AssetHolder {
 		return recoveredAddr == signer;
 	}
 
-	function calcFundingID(bytes32 channelID, address participant) pure returns (bytes32) {
+	function calcFundingID(bytes32 channelID, address participant) internal pure returns (bytes32) {
     	return keccak256(abi.encodePacked(channelID, participant));
 	}
 
