@@ -12,7 +12,7 @@ contract AssetHolderETH is AssetHolder {
 	using SafeMath for uint256;
 
 	constructor(address _adjudicator) public {
-		Adjudicator = _adjudicator;
+		adjudicator = _adjudicator;
 	}
 
 	// Deposit is used to deposit money into a channel
@@ -21,7 +21,7 @@ contract AssetHolderETH is AssetHolder {
 	function deposit(bytes32 fundingID, uint256 amount) external payable {
 		require(msg.value == amount, 'Insufficent ETH for deposit');
 		holdings[fundingID] = holdings[fundingID].add(amount);
-		emit Deposited(fundingID);
+		emit Deposited(fundingID, amount);
 	}
 
 	function withdraw(WithdrawalAuth memory authorization, bytes memory signature) public {

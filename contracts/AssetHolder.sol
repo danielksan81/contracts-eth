@@ -20,7 +20,7 @@ contract AssetHolder {
 	address public adjudicator;
 
 	modifier onlyAdjudicator {
-		require(msg.sender == Adjudicator,
+		require(msg.sender == adjudicator,
 			'This method can only be called by the adjudicator contract');
 		_;
 	}
@@ -43,8 +43,9 @@ contract AssetHolder {
 
 		bytes32[] memory fundingIDs = new bytes32[](parts.length);
 		for (uint256 i = 0; i < parts.length; i++) {
+			bytes32 id = calcFundingID(channelID, parts[i]);
 			// Save calculated ids to save gas.
-			fundingIDs[i] = calcFundingID(channelID, parts[i]);
+			fundingIDs[i] = id;
 			// Compute old balances.
 			sumHeld = sumHeld.add(holdings[id]);
 			// Compute new balances.
@@ -58,7 +59,7 @@ contract AssetHolder {
 		// We allow overfunding channels, who overfunds loses their funds.
 		if (sumHeld >= sumOutcome) {
 			for (uint256 i = 0; i < parts.length; i++) {
-				holdings[calculatedIDs[i]] = newBals[i];
+				holdings[fundingIDs[i]] = newBals[i];
 			}
 			for (uint256 i = 0; i < subAllocs.length; i++) {
 				// use add to prevent grieving
@@ -80,7 +81,7 @@ contract AssetHolder {
 	}
 
 	function calcFundingID(bytes32 channelID, address participant) pure returns (bytes32) {
-    	return keccak256(abi.encodePacked(channelId, participant));
+    	return keccak256(abi.encodePacked(channelID, participant));
 	}
 
 
