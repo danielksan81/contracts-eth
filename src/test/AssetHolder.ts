@@ -63,7 +63,7 @@ contract("AssetHolderETH", async (accounts) => {
 
   it("account[0] should deploy the AssetHolderETH contract", async () => {
       ah = await AssetHolderETH.new(accounts[0]);
-      let adj = await ah.Adjudicator();
+      let adj = await ah.adjudicator();
       assert(adj == accounts[0]);
   });
 
