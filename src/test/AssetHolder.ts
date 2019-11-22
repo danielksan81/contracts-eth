@@ -83,7 +83,7 @@ contract("AssetHolderETH", async (accounts) => {
     await truffleAssert.eventEmitted(
       await ah.deposit(id, ether(9), {value: ether(9), from: accounts[1]}),
       'Deposited',
-      (ev: any) => {return ev.participantID == id; }
+      (ev: any) => {return ev.fundingID == id; }
     );
     assertHoldings(id, ether(9));
   });
@@ -94,7 +94,7 @@ contract("AssetHolderETH", async (accounts) => {
     await truffleAssert.eventEmitted(
       await ah.deposit(id, amount, {value: amount, from: accounts[2]}),
       'Deposited',
-      (ev: any) => { return ev.participantID == id; }
+      (ev: any) => { return ev.fundingID == id; }
     );
     assertHoldings(id, amount);
   });
@@ -112,7 +112,7 @@ contract("AssetHolderETH", async (accounts) => {
     await truffleAssert.eventEmitted(
       await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
       'Deposited',
-      (ev: any) => { return ev.participantID == id; }
+      (ev: any) => { return ev.fundingID == id; }
     );
     assertHoldings(id, ether(10));
   });
@@ -192,7 +192,7 @@ contract("AssetHolderETH", async (accounts) => {
     truffleAssert.eventEmitted(
       await ah.deposit(id, ether(1), {value: ether(1), from: accounts[3]}),
       'Deposited',
-      (ev: any) => {return ev.participantID == id; }
+      (ev: any) => {return ev.fundingID == id; }
     );
     assertHoldings(id, ether(1));
   });
@@ -204,7 +204,7 @@ contract("AssetHolderETH", async (accounts) => {
     await truffleAssert.eventEmitted(
       await ah.setOutcome(channelID, participants, newBalances, [], [], {from: accounts[0]}),
       'OutcomeSet' ,
-      (ev: any) => { return ev.channelID == channelID }
+      (ev: any) => { return ev.fundingID == channelID }
     );
     assert(await ah.settled(channelID) == true);
     let id = hash(channelID, participants[0]);
