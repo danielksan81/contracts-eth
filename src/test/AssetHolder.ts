@@ -204,7 +204,7 @@ contract("AssetHolderETH", async (accounts) => {
     await truffleAssert.eventEmitted(
       await ah.setOutcome(channelID, participants, newBalances, [], [], {from: accounts[0]}),
       'OutcomeSet' ,
-      (ev: any) => { return ev.fundingID == channelID }
+      (ev: any) => { return ev.channelID == channelID; }
     );
     assert(await ah.settled(channelID) == true);
     let id = hash(channelID, participants[0]);
