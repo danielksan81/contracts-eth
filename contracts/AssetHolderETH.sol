@@ -27,7 +27,7 @@ contract AssetHolderETH is AssetHolder {
 	function withdraw(WithdrawalAuth memory authorization, bytes memory signature) public {
 		require(settled[authorization.channelID], 'channel not settled');
 		require(verifySignature(abi.encode(authorization), signature, authorization.participant), 'signature verification failed');
-		bytes32 id = calcFundingID(authorization.channelID, authorization.participant)
+		bytes32 id = calcFundingID(authorization.channelID, authorization.participant);
 		require(holdings[id] >= authorization.amount, 'insufficient ETH for withdraw');
 		// Decrease holdings, then transfer the money.
 		holdings[id] = holdings[id].sub(authorization.amount);
