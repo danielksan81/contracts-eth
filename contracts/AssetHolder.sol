@@ -17,11 +17,11 @@ contract AssetHolder {
 	// Mapping channelID => settled
 	mapping(bytes32 => bool) public settled;
 
-	address public Adjudicator;
-	// Only the adjudicator can call this method.
+	address public adjudicator;
+
 	modifier onlyAdjudicator {
 		require(msg.sender == Adjudicator,
-			'This method can only be called from the adjudicator contract');
+			'This method can only be called by the adjudicator contract');
 		_;
 	}
 
@@ -41,11 +41,10 @@ contract AssetHolder {
 		uint256 sumHeld = holdings[channelID];
 		uint256 sumOutcome = 0;
 
-		bytes32[] memory calculatedIDs = new bytes32[](parts.length);
+		bytes32[] memory fundingIDs = new bytes32[](parts.length);
 		for (uint256 i = 0; i < parts.length; i++) {
-			bytes32 id = keccak256(abi.encodePacked(channelID, parts[i]));
 			// Save calculated ids to save gas.
-			calculatedIDs[i] = id;
+			fundingIDs[i] = calcFundingID(channelID, parts[i]);
 			// Compute old balances.
 			sumHeld = sumHeld.add(holdings[id]);
 			// Compute new balances.
@@ -80,6 +79,11 @@ contract AssetHolder {
 		return recoveredAddr == signer;
 	}
 
+	function calcFundingID(bytes32 channelID, address participant) pure returns (bytes32) {
+    	return keccak256(abi.encodePacked(channelId, participant));
+	}
+
+
 
 	// WithdrawalAuthorization authorizes a on-chain public key to withdraw
 	// from an ephemeral key.
@@ -90,10 +94,10 @@ contract AssetHolder {
 		uint256 amount; // The amount that can be withdrawn.
 	}
 
-	function deposit(bytes32 participantID, uint256 amount) external payable;
+	function deposit(bytes32 fundingID, uint256 amount) external payable;
 	function withdraw(WithdrawalAuth memory authorization, bytes memory signature) public;
 
 	event OutcomeSet(bytes32 indexed channelID);
 
-	event Deposited(bytes32 indexed participantID);
+	event Deposited(bytes32 indexed fundingID, uint256 amount);
 }
