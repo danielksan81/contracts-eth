@@ -5,7 +5,7 @@
 pragma solidity ^0.5.11;
 pragma experimental ABIEncoderV2;
 import './AssetHolder.sol';
-import 'openzeppelin-solidity/contracts/math/SafeMath.sol';
+import './SafeMath.sol';
 
 contract AssetHolderETH is AssetHolder {
 
