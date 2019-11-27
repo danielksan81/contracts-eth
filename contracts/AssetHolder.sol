@@ -56,13 +56,13 @@ contract AssetHolder {
 			sumOutcome = sumOutcome.add(subBalances[i]);
 		}
 
-		// We allow overfunding channels, who overfunds loses their funds.
+		// We allow overfunding channels, who overfunds looses their funds.
 		if (sumHeld >= sumOutcome) {
 			for (uint256 i = 0; i < parts.length; i++) {
 				holdings[fundingIDs[i]] = newBals[i];
 			}
 			for (uint256 i = 0; i < subAllocs.length; i++) {
-				// use add to prevent grieving
+				// use add to prevent overwriting of other funds.
 				holdings[subAllocs[i]] = holdings[subAllocs[i]].add(subBalances[i]);
 			}
 		}
@@ -72,9 +72,7 @@ contract AssetHolder {
 
 	// VerifySignature verifies whether a piece of data was signed correctly.
 	function verifySignature(bytes memory data, bytes memory signature, address signer) internal pure returns (bool) {
-		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
-		bytes32 h = keccak256(data);
-		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
+		bytes32 prefixedHash = ECDSA.toEthSignedMessageHash(keccak256(data));
 		address recoveredAddr = ECDSA.recover(prefixedHash, signature);
 		require(recoveredAddr != address(0));
 		return recoveredAddr == signer;
@@ -89,8 +87,8 @@ contract AssetHolder {
 	// WithdrawalAuthorization authorizes a on-chain public key to withdraw
 	// from an ephemeral key.
 	struct WithdrawalAuth {
-		bytes32 channelID; // ChannelID that should be spend.
-		address participant; // The account used to sign commitment transitions.
+		bytes32 channelID;
+		address participant; // The account used to sign the authorization which is debited.
 		address payable receiver; // The receiver of the authorization.
 		uint256 amount; // The amount that can be withdrawn.
 	}

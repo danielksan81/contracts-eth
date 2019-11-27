@@ -19,7 +19,7 @@ contract AssetHolderETH is AssetHolder {
 	// The parameter participantID = H(channelID||address)
 	// This hides both the channelID as well as the participant address until a channel is settled.
 	function deposit(bytes32 fundingID, uint256 amount) external payable {
-		require(msg.value == amount, 'Insufficent ETH for deposit');
+		require(msg.value == amount, 'wrong amount of ETH for deposit');
 		holdings[fundingID] = holdings[fundingID].add(amount);
 		emit Deposited(fundingID, amount);
 	}
@@ -28,7 +28,7 @@ contract AssetHolderETH is AssetHolder {
 		require(settled[authorization.channelID], 'channel not settled');
 		require(verifySignature(abi.encode(authorization), signature, authorization.participant), 'signature verification failed');
 		bytes32 id = calcFundingID(authorization.channelID, authorization.participant);
-		require(holdings[id] >= authorization.amount, 'insufficient ETH for withdraw');
+		require(holdings[id] >= authorization.amount, 'insufficient ETH for withdrawal');
 		// Decrease holdings, then transfer the money.
 		holdings[id] = holdings[id].sub(authorization.amount);
 		authorization.receiver.transfer(authorization.amount);
