@@ -119,6 +119,14 @@ contract("AssetHolderETH", async (accounts) => {
     assertHoldings(id, balance[A]);
   });
 
+  it("set outcome from wrong origin", async () => {
+    assert(newBalances.length == parts.length);
+    assert(await ah.settled(channelID) == false);
+    await truffleAssert.reverts(
+      ah.setOutcome(channelID, parts, newBalances, [], [], {from: accounts[3]}),
+    );
+  });
+
   it("set outcome of the asset holder", async () => {
     assert(newBalances.length == parts.length);
     assert(await ah.settled(channelID) == false);
