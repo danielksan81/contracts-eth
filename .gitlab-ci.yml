@@ -42,7 +42,10 @@ mythril:
     - pip3 install mythril
   script:
     - myth truffle
-  allow_failure: true
+  allow_failure: false
+  only:
+    changes:
+        - contracts/*
 
 solium:
   image: node:10
