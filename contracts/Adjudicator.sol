@@ -5,8 +5,8 @@
 pragma solidity ^0.5.11;
 pragma experimental ABIEncoderV2;
 
-import "./PerunTypes.sol";
-import "./ValidTransition.sol";
+import "./Channel.sol";
+import "./App.sol";
 import "./AssetHolder.sol";
 import "./SafeMath.sol";
 import "./ECDSA.sol";
@@ -15,10 +15,10 @@ contract Adjudicator {
 
 	using SafeMath for uint256;
 
-	enum DisputeState { DISPUTE, FORCEMOVE }
+	enum DisputePhase { DISPUTE, FORCEEXEC }
 
 	// Mapping channelID => H(parameters, state, timeout).
-	mapping(bytes32 => bytes32) public disputeRegistry;
+	mapping(bytes32 => bytes32) public disputes;
 
 	// Events used by the contract.
 	event Registered(bytes32 indexed channelID, uint256 version);
@@ -32,14 +32,14 @@ contract Adjudicator {
 	// Restricts functions to only be called before a certain timeout.
 	modifier beforeTimeout(uint256 timeout)
 	{
-		require(now < timeout, 'function called after timeout');
+		require(now < timeout, "function called after timeout");
 		_;
 	}
 
 	// Restricts functions to only be called after a certain timeout.
 	modifier afterTimeout(uint256 timeout)
 	{
-		require(now >= timeout, 'function called before timeout');
+		require(now >= timeout, "function called before timeout");
 		_;
 	}
 
@@ -53,11 +53,11 @@ contract Adjudicator {
 		bytes[] memory sigs)
 	public
 	{
-		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID, 'tried registering invalid channelID');
-		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
+		bytes32 channelID = calcChannelID(p);
+		require(s.channelID == channelID, "tried registering invalid channelID");
+		require(disputes[channelID] == bytes32(0), "a dispute was already registered");
 		validateSignatures(p, s, sigs);
-		storeChallenge(p, s, channelID, DisputeState.DISPUTE);
+		storeChallenge(p, s, channelID, DisputePhase.DISPUTE);
 		emit Registered(channelID, s.version);
 	}
 
@@ -73,13 +73,13 @@ contract Adjudicator {
 		bytes[] memory sigs)
 	public beforeTimeout(timeout)
 	{
-		require(s.version > old.version, 'only a refutation with a newer state is valid');
-		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID, 'tried refutation with invalid channelID');
-		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, DisputeState.DISPUTE),
-			'provided wrong old state/timeout');
+		require(s.version > old.version, "only a refutation with a newer state is valid");
+		bytes32 channelID = calcChannelID(p);
+		require(s.channelID == channelID, "tried refutation with invalid channelID");
+		require(disputes[channelID] == hashDispute(p, old, timeout, DisputePhase.DISPUTE),
+			"provided wrong old state or timeout");
 		validateSignatures(p, s, sigs);
-		storeChallenge(p, s, channelID, DisputeState.DISPUTE);
+		storeChallenge(p, s, channelID, DisputePhase.DISPUTE);
 		emit Refuted(channelID, s.version);
 	}
 
@@ -92,24 +92,23 @@ contract Adjudicator {
 		Channel.Params memory p,
 		Channel.State memory old,
 		uint256 timeout,
-		DisputeState disputeState,
+		DisputePhase disputePhase,
 		Channel.State memory s,
-		uint256 moverIdx,
+		uint256 actorIdx,
 		bytes memory sig)
 	public
 	{
-		if(disputeState == DisputeState.DISPUTE) {
-			require(now >= timeout, 'function called before timeout');
+		if(disputePhase == DisputePhase.DISPUTE) {
+			require(now >= timeout, "function called before timeout");
 		}
-
-		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID, 'tried to respond with invalid channelID');
-		require(disputeRegistry[channelID] == hashDispute(p, old, timeout, disputeState), 'provided wrong old state/timeout');
+		require(actorIdx < p.participants.length, "actorIdx out of range");
+		bytes32 channelID = calcChannelID(p);
+		require(s.channelID == channelID, "tried to respond with invalid channelID");
+		require(disputes[channelID] == hashDispute(p, old, timeout, disputePhase), "provided wrong old state or timeout");
 		address signer = recoverSigner(s, sig);
-		require(moverIdx < p.participants.length);
-		require(p.participants[moverIdx] == signer, 'moverIdx is not set to the id of the sender');
-		validTransition(p, old, s, moverIdx);
-		storeChallenge(p, s, channelID, DisputeState.FORCEMOVE);
+		require(p.participants[actorIdx] == signer, "actorIdx is not set to the id of the sender");
+		validTransition(p, old, s, actorIdx);
+		storeChallenge(p, s, channelID, DisputePhase.FORCEEXEC);
 		emit Responded(channelID, s.version);
 	}
 
@@ -120,11 +119,11 @@ contract Adjudicator {
 		Channel.Params memory p,
 		Channel.State memory s,
 		uint256 timeout,
-		DisputeState disputeState)
+		DisputePhase disputePhase)
 	public afterTimeout(timeout)
 	{
-		bytes32 channelID = calculateChannelID(p);
-		require(disputeRegistry[channelID] == hashDispute(p, s, timeout, disputeState), 'provided wrong old state/timeout');
+		bytes32 channelID = calcChannelID(p);
+		require(disputes[channelID] == hashDispute(p, s, timeout, disputePhase), "provided wrong old state or timeout");
 		pushOutcome(channelID, p, s);
 		emit Concluded(channelID);
 	}
@@ -139,16 +138,16 @@ contract Adjudicator {
 		bytes[] memory sigs)
 	public
 	{
-		require(s.isFinal == true, 'only accept final states');
-		bytes32 channelID = calculateChannelID(p);
-		require(s.channelID == channelID, 'tried registering invalid channelID');
-		require(disputeRegistry[channelID] == bytes32(0), 'a dispute was already registered');
+		require(s.isFinal == true, "only accept final states");
+		bytes32 channelID = calcChannelID(p);
+		require(s.channelID == channelID, "tried registering invalid channelID");
+		require(disputes[channelID] == bytes32(0), "a dispute was already registered");
 		validateSignatures(p, s, sigs);
 		pushOutcome(channelID, p, s);
 		emit FinalStateRegistered(channelID);
 	}
 
-	function calculateChannelID(Channel.Params memory p) internal pure returns (bytes32) {
+	function calcChannelID(Channel.Params memory p) internal pure returns (bytes32) {
 		return keccak256(abi.encode(p.challengeDuration, p.nonce, p.app, p.participants));
 	}
 
@@ -156,11 +155,11 @@ contract Adjudicator {
 		Channel.Params memory p,
 		Channel.State memory s,
 		bytes32 channelID,
-		DisputeState disputeState)
+		DisputePhase disputePhase)
 	internal
 	{
 		uint256 timeout = now.add(p.challengeDuration);
-		disputeRegistry[channelID] = hashDispute(p, s, timeout, disputeState);
+		disputes[channelID] = hashDispute(p, s, timeout, disputePhase);
 		emit Stored(channelID, timeout);
 	}
 
@@ -168,40 +167,40 @@ contract Adjudicator {
 		Channel.Params memory p,
 		Channel.State memory s,
 		uint256 timeout,
-		DisputeState disputeState)
+		DisputePhase disputePhase)
 	internal pure returns (bytes32)
 	{
-		return keccak256(abi.encode(p, s, timeout, uint256(disputeState)));
+		return keccak256(abi.encode(p, s, timeout, uint256(disputePhase)));
 	}
 
 	function validTransition(
 		Channel.Params memory p,
 		Channel.State memory old,
 		Channel.State memory s,
-		uint256 moverIdx)
+		uint256 actorIdx)
 	internal pure
 	{
-		require(s.version == old.version + 1, 'can only advance the version counter by one');
+		require(s.version == old.version + 1, "can only advance the version counter by one");
 		checkAssetPreservation(old.outcome, s.outcome, p.participants.length);
-		ValidTransitioner va = ValidTransitioner(p.app);
-		require(va.validTransition(p, old, s, moverIdx), 'invalid new state');
+		App app = App(p.app);
+		require(app.validTransition(p, old, s, actorIdx), "invalid new state");
 	}
 
 	function checkAssetPreservation(
 		Channel.Allocation memory oldAlloc,
 		Channel.Allocation memory newAlloc,
-		uint256 participantsLength)
+		uint256 numParts)
 	internal pure
 	{
-		assert(oldAlloc.balances.length == newAlloc.balances.length);
-		assert(oldAlloc.assets.length == newAlloc.assets.length);
+		require(oldAlloc.balances.length == newAlloc.balances.length, "length of balances do not match");
+		require(oldAlloc.assets.length == newAlloc.assets.length, "length of assets do not match");
 		for (uint256 i = 0; i < newAlloc.assets.length; i++) {
 			require(oldAlloc.assets[i] == newAlloc.assets[i], 'asset addresses mismatch');
 			uint256 sumOld = 0;
 			uint256 sumNew = 0;
-			assert(oldAlloc.balances[i].length == newAlloc.balances[i].length);
-			assert(oldAlloc.balances[i].length == participantsLength);
-			for (uint256 k = 0; k < newAlloc.balances[i].length; k++) {
+			require(oldAlloc.balances[i].length == newAlloc.balances[i].length, "length of balances[i] do not match");
+			require(oldAlloc.balances[i].length == numParts, "length of balances[i] does not match numParts");
+			for (uint256 k = 0; k < numParts; k++) {
 				sumOld = sumOld.add(oldAlloc.balances[i][k]);
 				sumNew = sumNew.add(newAlloc.balances[i][k]);
 			}
@@ -237,7 +236,7 @@ contract Adjudicator {
 
 		for (uint256 i = 0; i < s.outcome.assets.length; i++) {
 			AssetHolder a = AssetHolder(s.outcome.assets[i]);
-			require(s.outcome.balances[i].length == p.participants.length, 'balances length should match participants length');
+			require(s.outcome.balances[i].length == p.participants.length, "balances length should match participants length");
 			a.setOutcome(channelID, p.participants, s.outcome.balances[i], subAllocs, balances[i]);
 		}
 		emit PushOutcome(channelID);
@@ -249,10 +248,10 @@ contract Adjudicator {
 		bytes[] memory sigs)
 	internal pure
 	{
-		assert(p.participants.length == sigs.length);
+		require(p.participants.length == sigs.length, "invalid length of signatures");
 		for (uint256 i = 0; i < sigs.length; i++) {
 			address signer = recoverSigner(s, sigs[i]);
-			require(p.participants[i] == signer, 'invalid signature');
+			require(p.participants[i] == signer, "invalid signature");
 		}
 	}
 
@@ -261,14 +260,12 @@ contract Adjudicator {
 		bytes memory sig)
 	internal pure returns (address)
 	{
-		bytes memory prefix = '\x19Ethereum Signed Message:\n32';
 		bytes memory subAlloc = abi.encode(s.outcome.locked[0].ID, s.outcome.locked[0].balances);
 		bytes memory outcome = abi.encode(s.outcome.assets, s.outcome.balances, subAlloc);
 		bytes memory state = abi.encode(s.channelID, s.version, outcome, s.appData, s.isFinal);
-		bytes32 h = keccak256(state);
-		bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, h));
+		bytes32 prefixedHash = ECDSA.toEthSignedMessageHash(keccak256(state));
 		address recoveredAddr = ECDSA.recover(prefixedHash, sig);
-		require(recoveredAddr != address(0));
+		require(recoveredAddr != address(0), "recovered invalid signature");
 		return recoveredAddr;
 	}
 
