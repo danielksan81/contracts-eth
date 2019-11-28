@@ -5,16 +5,16 @@
 pragma solidity ^0.5.11;
 pragma experimental ABIEncoderV2;
 
-import "./PerunTypes.sol";
-import "./ValidTransition.sol";
+import "./Channel.sol";
+import "./App.sol";
 
-contract TrivialApp is ValidTransitioner {
+contract TrivialApp is App {
 
 	function validTransition(
 	    Channel.Params calldata params,
 		Channel.State calldata from,
 		Channel.State calldata to,
-		uint256 moverIdx)
+		uint256 actorIdx)
 	external pure returns (bool)
 	{
 	    return true;
