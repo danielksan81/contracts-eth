@@ -4,13 +4,25 @@
 
 pragma solidity ^0.5.11;
 pragma experimental ABIEncoderV2;
-import './SafeMath.sol';
-import './ECDSA.sol';
+import "./SafeMath.sol";
+import "./ECDSA.sol";
 
 // AssetHolder is an abstract contract that holds the funds for a Perun state channel.
 contract AssetHolder {
 
 	using SafeMath for uint256;
+
+	// WithdrawalAuthorization authorizes a on-chain public key to withdraw
+	// from an ephemeral key.
+	struct WithdrawalAuth {
+		bytes32 channelID;
+		address participant; // The account used to sign the authorization which is debited.
+		address payable receiver; // The receiver of the authorization.
+		uint256 amount; // The amount that can be withdrawn.
+	}
+
+	event OutcomeSet(bytes32 indexed channelID);
+	event Deposited(bytes32 indexed fundingID, uint256 amount);
 
 	// Mapping H(channelID||participant) => money
 	mapping(bytes32 => uint256) public holdings;
@@ -21,7 +33,7 @@ contract AssetHolder {
 
 	modifier onlyAdjudicator {
 		require(msg.sender == adjudicator,
-			'This method can only be called by the adjudicator contract');
+			"This method can only be called by the adjudicator contract");
 		_;
 	}
 
@@ -33,10 +45,10 @@ contract AssetHolder {
 		bytes32[] calldata subAllocs,
 		uint256[] calldata subBalances)
 	external onlyAdjudicator {
-		require(parts.length == newBals.length, 'participants length should equal balances');
-		require(subAllocs.length == subBalances.length, 'length of subAllocs and subBalances should be equal');
-		require(subAllocs.length == 0, 'subAllocs currently not implemented');
-		require(settled[channelID] == false, 'trying to set already settled channel');
+		require(parts.length == newBals.length, "participants length should equal balances");
+		require(subAllocs.length == subBalances.length, "length of subAllocs and subBalances should be equal");
+		require(subAllocs.length == 0, "subAllocs currently not implemented");
+		require(settled[channelID] == false, "trying to set already settled channel");
 
 		// The channelID itself might already be funded
 		uint256 sumHeld = holdings[channelID];
@@ -75,21 +87,6 @@ contract AssetHolder {
     	return keccak256(abi.encodePacked(channelID, participant));
 	}
 
-
-
-	// WithdrawalAuthorization authorizes a on-chain public key to withdraw
-	// from an ephemeral key.
-	struct WithdrawalAuth {
-		bytes32 channelID;
-		address participant; // The account used to sign the authorization which is debited.
-		address payable receiver; // The receiver of the authorization.
-		uint256 amount; // The amount that can be withdrawn.
-	}
-
 	function deposit(bytes32 fundingID, uint256 amount) external payable;
 	function withdraw(WithdrawalAuth memory authorization, bytes memory signature) public;
-
-	event OutcomeSet(bytes32 indexed channelID);
-
-	event Deposited(bytes32 indexed fundingID, uint256 amount);
 }

@@ -4,8 +4,8 @@
 
 pragma solidity ^0.5.11;
 pragma experimental ABIEncoderV2;
-import './AssetHolder.sol';
-import './SafeMath.sol';
+import "./AssetHolder.sol";
+import "./SafeMath.sol";
 
 contract AssetHolderETH is AssetHolder {
 
@@ -16,19 +16,19 @@ contract AssetHolderETH is AssetHolder {
 	}
 
 	// Deposit is used to deposit money into a channel
-	// The parameter participantID = H(channelID||address)
+	// The parameter fundingID = H(channelID||address)
 	// This hides both the channelID as well as the participant address until a channel is settled.
 	function deposit(bytes32 fundingID, uint256 amount) external payable {
-		require(msg.value == amount, 'wrong amount of ETH for deposit');
+		require(msg.value == amount, "wrong amount of ETH for deposit");
 		holdings[fundingID] = holdings[fundingID].add(amount);
 		emit Deposited(fundingID, amount);
 	}
 
 	function withdraw(WithdrawalAuth memory authorization, bytes memory signature) public {
-		require(settled[authorization.channelID], 'channel not settled');
-		require(verifySignature(abi.encode(authorization), signature, authorization.participant), 'signature verification failed');
+		require(settled[authorization.channelID], "channel not settled");
+		require(verifySignature(abi.encode(authorization), signature, authorization.participant), "signature verification failed");
 		bytes32 id = calcFundingID(authorization.channelID, authorization.participant);
-		require(holdings[id] >= authorization.amount, 'insufficient ETH for withdrawal');
+		require(holdings[id] >= authorization.amount, "insufficient ETH for withdrawal");
 		// Decrease holdings, then transfer the money.
 		holdings[id] = holdings[id].sub(authorization.amount);
 		authorization.receiver.transfer(authorization.amount);
