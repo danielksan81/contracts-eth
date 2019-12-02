@@ -7,7 +7,7 @@ pragma experimental ABIEncoderV2;
 
 library Channel {
 
-	struct Params{
+	struct Params {
 		uint256 challengeDuration;
 		uint256 nonce;
 		address app;
