@@ -4,7 +4,7 @@
 
 /// <reference types="truffle-typings" />
 import { assert, expect, should } from "chai";
-import { sign, ether, snapshot } from "../lib/test";
+import { sign, ether, snapshot } from "test";
 should();
 const truffleAssert = require('truffle-assertions');
 import { AssetHolderETHContract, AssetHolderETHInstance } from "../../types/truffle-contracts";
@@ -48,8 +48,6 @@ class Authorization {
       web3.utils.padLeft(this.amount, 64, "0")]);
   }
 }
-
-
 
 contract("AssetHolderETH", async (accounts) => {
   let ah: AssetHolderETHInstance;
