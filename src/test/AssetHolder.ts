@@ -4,7 +4,7 @@
 
 /// <reference types="truffle-typings" />
 import { assert, expect, should } from "chai";
-import { sign, ether, snapshot } from "test";
+import { sign, ether, snapshot } from "../lib/test";
 should();
 const truffleAssert = require('truffle-assertions');
 import { AssetHolderETHContract, AssetHolderETHInstance } from "../../types/truffle-contracts";
