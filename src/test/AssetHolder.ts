@@ -4,7 +4,7 @@
 
 /// <reference types="truffle-typings" />
 import { assert, expect, should } from "chai";
-import { promisify } from "util";
+import { sign, ether, snapshot } from "../lib/test";
 should();
 const truffleAssert = require('truffle-assertions');
 import { AssetHolderETHContract, AssetHolderETHInstance } from "../../types/truffle-contracts";
@@ -14,7 +14,7 @@ var web3 = new Web3(Web3.givenProvider || 'http://127.0.0.1:7545/');
 const AssetHolderETH = artifacts.require<AssetHolderETHContract>("AssetHolderETH");
 const toBN = web3.utils.toBN;
 
-function hash(channelID: string, participant: string) {
+function fundingID(channelID: string, participant: string) {
   return web3.utils.soliditySha3(channelID, participant);
 }
 
@@ -49,49 +49,16 @@ class Authorization {
   }
 }
 
-async function sign(data: string, account: string) {
-  let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
-  // fix wrong v value (add 27)
-  let v = sig.slice(130, 132);
-  return sig.slice(0,130) + (parseInt(v, 16)+27).toString(16);
-}
 
-function ether(x: number): BN { return web3.utils.toWei(web3.utils.toBN(x), "ether"); }
-
-function asyncWeb3Send(method: string, params: any[], id?: number): Promise<any> {
-  let req: any = { jsonrpc: '2.0', method: method, params: params };
-  if (id != undefined) req.id = id;
-
-  return promisify((callback) => {
-    (web3.currentProvider as any).send(req, callback)
-  })();
-}
-
-function snapshot(name: string, tests: any) {
-  describe("Snapshot: " + name, () => {
-    let snapshot_id: number;
-
-    before("take snapshot before all tests", async () => {
-      snapshot_id = (await asyncWeb3Send('evm_snapshot', [])).result;
-    });
-
-    after("restore snapshot after all test", async () => {
-      return asyncWeb3Send('evm_revert', [snapshot_id]);
-    });
-
-    tests();
-  });
-}
 
 contract("AssetHolderETH", async (accounts) => {
   let ah: AssetHolderETHInstance;
-  let channelID = hash("1234", "asdfasdf");
-  let parts = [accounts[1], accounts[2]];
-  let balance = [ether(10), ether(20)];
+  let channelID = fundingID("1234", "asdfasdf");
+  const parts = [accounts[1], accounts[2]];
+  const balance = [ether(10), ether(20)];
   const timeout = 60;
-  let newBalances = [ether(20), ether(10)];
-  let A = 0
-  let B = 1
+  const newBalances = [ether(20), ether(10)];
+  const A = 0, B = 1
 
   it("account[0] should deploy the AssetHolderETH contract", async () => {
       ah = await AssetHolderETH.new(accounts[0]);
@@ -110,9 +77,9 @@ contract("AssetHolderETH", async (accounts) => {
     );
   });
 
-  await describe("Funding...", () => {
-    it("a deposits 9 eth into a channel", async () => {
-      let id = hash(channelID, parts[A]);
+  describe("Funding...", () => {
+    it("A deposits 9 eth into a channel", async () => {
+      let id = fundingID(channelID, parts[A]);
       await truffleAssert.eventEmitted(
         await ah.deposit(id, ether(9), {value: ether(9), from: parts[A]}),
         'Deposited',
@@ -121,8 +88,8 @@ contract("AssetHolderETH", async (accounts) => {
       assertHoldings(id, ether(9));
     });
 
-    it("b deposits 20 eth into a channel", async () => {
-      let id = hash(channelID, parts[B]);
+    it("B deposits 20 eth into a channel", async () => {
+      let id = fundingID(channelID, parts[B]);
       let amount = balance[B];
       await truffleAssert.eventEmitted(
         await ah.deposit(id, amount, {value: amount, from: parts[B]}),
@@ -132,16 +99,16 @@ contract("AssetHolderETH", async (accounts) => {
       assertHoldings(id, amount);
     });
 
-    it("a sends too little money with call", async () => {
-      let id = hash(channelID, parts[A]);
+    it("A sends too little money with call", async () => {
+      let id = fundingID(channelID, parts[A]);
       await truffleAssert.reverts(
         ah.deposit(id, ether(10), {value: ether(1), from: parts[A]})
       );
       assertHoldings(id, ether(9));
     });
 
-    it("a tops up her channel with 1 eth", async () => {
-      let id = hash(channelID, parts[A]);
+    it("A tops up their channel with 1 eth", async () => {
+      let id = fundingID(channelID, parts[A]);
       await truffleAssert.eventEmitted(
         await ah.deposit(id, ether(1), {value: ether(1), from: parts[A]}),
         'Deposited',
@@ -151,7 +118,7 @@ contract("AssetHolderETH", async (accounts) => {
     });
   })
 
-  await snapshot("Set outcome", () => {
+  snapshot("Set outcome", () => {
     it("set outcome from wrong origin", async () => {
       assert(newBalances.length == parts.length);
       assert(await ah.settled(channelID) == false);
@@ -161,7 +128,7 @@ contract("AssetHolderETH", async (accounts) => {
     });
   })
 
-  await describe("Setting outcome", () => {
+  describe("Setting outcome", () => {
     it("set outcome of the asset holder", async () => {
       assert(newBalances.length == parts.length);
       assert(await ah.settled(channelID) == false);
@@ -172,7 +139,7 @@ contract("AssetHolderETH", async (accounts) => {
       );
       assert(await ah.settled(channelID) == true);
       for (var i = 0; i < parts.length; i++) {
-        let id = hash(channelID, parts[i]);
+        let id = fundingID(channelID, parts[i]);
         await assertHoldings(id, newBalances[i]);
       }
     });
@@ -184,7 +151,7 @@ contract("AssetHolderETH", async (accounts) => {
     });
   })
 
-  await snapshot("Withdraw", () => {
+  snapshot("Invalid withdrawals", () => {
     it("withdraw with invalid signature", async () => {
       let authorization = new Authorization(channelID, parts[A], parts[B], newBalances[A].toString());
       let signature = await sign(authorization.encode(), parts[B]);
@@ -202,8 +169,8 @@ contract("AssetHolderETH", async (accounts) => {
     });
   })
 
-  await describe("Withdraw", () => {
-    it("a withdraws with valid allowance 20 eth", async () => {
+  describe("Withdraw", () => {
+    it("A withdraws with valid allowance 20 eth", async () => {
       let balanceBefore = await web3.eth.getBalance(parts[A]);
       let authorization = new Authorization(channelID, parts[A], parts[A], newBalances[A].toString());
       let signature = await sign(authorization.encode(), parts[A]);
@@ -214,7 +181,7 @@ contract("AssetHolderETH", async (accounts) => {
       assert(toBN(balanceBefore).add(ether(20)).eq(toBN(balanceAfter)));
     });
 
-    it("b withdraws with valid allowance 10 eth", async () => {
+    it("B withdraws with valid allowance 10 eth", async () => {
       let balanceBefore = await web3.eth.getBalance(parts[B]);
       let authorization = new Authorization(channelID, parts[B], parts[B], newBalances[B].toString());
       let signature = await sign(authorization.encode(), parts[B]);
@@ -234,12 +201,12 @@ contract("AssetHolderETH", async (accounts) => {
     });
   })
 
-  await describe("Test underfunded channel", () => {
+  describe("Test underfunded channel", () => {
     // check withdrawal after a party refuses to deposit funds into asset holder
-    let channelID = hash("12345", "asdfasdf");
-    
+    let channelID = fundingID("12345", "asdfasdf");
+
     it("a deposits 1 eth into a channel", async () => {
-      let id = hash(channelID, parts[A]);
+      let id = fundingID(channelID, parts[A]);
       truffleAssert.eventEmitted(
         await ah.deposit(id, ether(1), {value: ether(1), from: accounts[3]}),
         'Deposited',
@@ -257,11 +224,11 @@ contract("AssetHolderETH", async (accounts) => {
         (ev: any) => { return ev.channelID == channelID; }
       );
       assert(await ah.settled(channelID) == true);
-      let id = hash(channelID, parts[A]);
+      let id = fundingID(channelID, parts[A]);
       assertHoldings(id, ether(1));
     });
 
-    it("a fails to withdraw 2 eth after b's deposit refusal", async () => {
+    it("A fails to withdraw 2 eth after B's deposit refusal", async () => {
       let authorization = new Authorization(channelID, parts[A], parts[A], ether(2).toString());
       let signature = await sign(authorization.encode(), parts[A]);
       await truffleAssert.reverts(
@@ -269,7 +236,7 @@ contract("AssetHolderETH", async (accounts) => {
       );
     });
 
-    it("a withdraws 1 eth after b's deposit refusal", async () => {
+    it("A withdraws 1 eth after B's deposit refusal", async () => {
       let balanceBefore = await web3.eth.getBalance(parts[A]);
       let authorization = new Authorization(channelID, parts[A], parts[A], ether(1).toString());
       let signature = await sign(authorization.encode(), parts[A]);
