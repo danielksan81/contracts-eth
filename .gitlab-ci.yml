@@ -33,6 +33,7 @@ coverage:
     - yarn install
     - yarn build
     - yarn run solidity-coverage
+  allow_failure: false
 
 
 mythril:
