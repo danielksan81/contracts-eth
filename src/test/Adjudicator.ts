@@ -1,4 +1,5 @@
 import { assert, expect, should } from "chai";
+import { sign, ether, hash, sleep, fundingID, snapshot } from "../lib/test";
 should();
 const truffleAssert = require('truffle-assertions');
 import { AdjudicatorContract, AdjudicatorInstance,
@@ -16,17 +17,17 @@ class Params {
   app: string;
   challengeDuration: string;
   nonce: string;
-  participants: string[];
+  parts: string[];
 
-  constructor(_app: string, _challengeDuration: string, _nonce: string, _participants: string[]) {
+  constructor(_app: string, _challengeDuration: string, _nonce: string, _parts: string[]) {
     this.app = _app;
     this.challengeDuration = _challengeDuration;
     this.nonce = _nonce;
-    this.participants = _participants;
+    this.parts = _parts;
   }
 
   serialize() {
-    return {app: this.app, challengeDuration: this.challengeDuration, nonce: this.nonce, participants: this.participants};
+    return {app: this.app, challengeDuration: this.challengeDuration, nonce: this.nonce, participants: this.parts};
   }
 
   encode() {
@@ -35,7 +36,11 @@ class Params {
       [web3.utils.padLeft(this.challengeDuration, 64, "0"),
       web3.utils.padLeft(this.nonce, 64, "0"),
       this.app,
-      this.participants]);
+      this.parts]);
+  }
+
+  channelID() {
+    return hash(this.encode());
   }
 }
 
@@ -115,80 +120,59 @@ class SubAlloc {
   }
 }
 
-function hash(message: string) {
-  return web3.utils.soliditySha3(message);
-}
-
-function hashAssetHolder(channelID: string, participant: string) {
-  return web3.utils.soliditySha3(channelID, participant);
-}
-
-function Sleep(milliseconds: any) {
-   return new Promise(resolve => setTimeout(resolve, milliseconds));
-}
-
-async function sign(data: string, account: string) {
-  let sig = await web3.eth.sign(web3.utils.soliditySha3(data), account);
-  // fix wrong v value (add 27)
-  let v = sig.slice(130, 132);
-  return sig.slice(0,130) + (parseInt(v, 16)+27).toString(16);
-}
-
-function ether(x: number): BN { return web3.utils.toWei(web3.utils.toBN(x), "ether"); }
-
 contract("Adjudicator", async (accounts) => {
-  let ad: AdjudicatorInstance;
+  let adj: AdjudicatorInstance;
   let ah: AssetHolderETHInstance;
   let app: string;
   let asset: string
-  let participants = [accounts[1], accounts[2]];
-  let balance = {A: ether(10), B: ether(20)};
+  const parts = [accounts[1], accounts[2]];
+  const balance = [ether(10), ether(20)];
   const timeout = "60";
-  let nonce = "0xB0B0FACE"
-  let newBalances = [ether(20), ether(10)];
-  let DISPUTE = 0;
-  let FORCEMOVE = 1;
+  const nonce = "0xB0B0FACE"
+  const newBalances = [ether(20), ether(10)];
+  const A = 0, B = 1;
+  const DISPUTE = 0, FORCEMOVE = 1;
 
   it("account[0] should deploy the Adjudicator contract", async () => {
-      ad = await Adjudicator.new();
+      adj = await Adjudicator.new();
       let appInstance = await TrivialApp.new();
       app = appInstance.address;
-      ah = await AssetHolderETH.new(ad.address);
+      ah = await AssetHolderETH.new(adj.address);
       asset = ah.address;
   });
 
   // Register
 
   it("register invalid channelID", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
     // calculate channelID wrong:
     let channelID = hash("asdf");
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "0", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.register(
+      adj.register(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
   it("registering state with invalid signatures fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "0", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), accounts[0])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[A])];
     await truffleAssert.reverts(
-      ad.register(
+      adj.register(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
@@ -196,18 +180,18 @@ contract("Adjudicator", async (accounts) => {
   let validStateTimeout: string;
 
   it("register valid state", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     truffleAssert.eventEmitted(
-      await ad.register(
+      await adj.register(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
       'Stored',
       (ev: any) => {
         validStateTimeout = ev.timeout;
@@ -218,110 +202,110 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("registering state twice fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.register(
+      adj.register(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
   // refute
 
   it("refuting with old state fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "3", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.refute(
+      adj.refute(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
   it("refuting with wrong timeout fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.refute(
+      adj.refute(
         params.serialize(),
         validState.serialize(),
         validStateTimeout + "1",
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
   it("refuting with wrong channelID fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
     let channelID = hash("asdf");
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.refute(
+      adj.refute(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
   it("refuting with invalid signatures fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[0])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[A])];
     await truffleAssert.reverts(
-      ad.refute(
+      adj.refute(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
       );
   });
 
   it("refuting with correct state succeeds", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     truffleAssert.eventEmitted(
-      await ad.refute(
+      await adj.refute(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
       'Stored',
       (ev: any) => {
         validStateTimeout = ev.timeout;
@@ -334,14 +318,14 @@ contract("Adjudicator", async (accounts) => {
 // progress
 
   it("progress with incorrect version fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sig = await sign(state.encode(), participants[0]);
+    let sig = await sign(state.encode(), parts[A]);
     await truffleAssert.reverts(
-      ad.progress(
+      adj.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -349,19 +333,19 @@ contract("Adjudicator", async (accounts) => {
         state.serialize(),
         0,
         sig,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
       );
   });
 
   it("progress before timeout fails", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "6", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sig = await sign(state.encode(), participants[0]);
+    let sig = await sign(state.encode(), parts[A]);
     await truffleAssert.reverts(
-      ad.progress(
+      adj.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -369,77 +353,77 @@ contract("Adjudicator", async (accounts) => {
         state.serialize(),
         0,
         sig,
-        {from: accounts[1]}),
+        {from: accounts[0]}),
     );
   });
 
   // Register final state
 
   it("a deposits 1 eth into a channel", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
-    let id = hashAssetHolder(channelID, participants[0]);
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
+    let id = fundingID(channelID, parts[A]);
     truffleAssert.eventEmitted(
-      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
+      await ah.deposit(id, ether(1), {value: ether(1), from: parts[A]}),
       'Deposited',
       (ev: any) => {return ev.fundingID == id; }
     );
   });
 
   it("b deposits 1 eth into a channel", async () => {
-    let params = new Params(app, timeout, nonce, [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
-    let id = hashAssetHolder(channelID, participants[1]);
+    let params = new Params(app, timeout, nonce, [parts[A], parts[B]]);
+    let channelID = params.channelID();
+    let id = fundingID(channelID, parts[B]);
     truffleAssert.eventEmitted(
-      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[2]}),
+      await ah.deposit(id, ether(1), {value: ether(1), from: parts[B]}),
       'Deposited',
       (ev: any) => { return ev.fundingID == id; }
     );
   });
 
   it("register valid final state should reject wrong signatures", async () => {
-    let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, "0xB0B0", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "4", outcome, "0x00", true);    let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), accounts[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), accounts[0]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.concludeFinal(
+      adj.concludeFinal(
         params.serialize(),
         state.serialize(),
         sigs,
-         {from: accounts[1]})
+         {from: parts[B]})
       );
   });
 
   it("register valid final state should only accept final states", async () => {
-    let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, "0xB0B0", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "4", outcome, "0x00", false);    let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     await truffleAssert.reverts(
-      ad.concludeFinal(
+      adj.concludeFinal(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]})
+        {from: parts[A]})
       );
   });
 
   it("register valid final state", async () => {
-    let params = new Params(app, timeout, "0xB0B0", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, timeout, "0xB0B0", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "4", outcome, "0x00", true);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     truffleAssert.eventEmitted(
-      await ad.concludeFinal(
+      await adj.concludeFinal(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: parts[A]}),
       'PushOutcome',
       (ev: any) => {
         return ev.channelID == channelID;
@@ -450,18 +434,18 @@ contract("Adjudicator", async (accounts) => {
   // Conclude from challenge
 
   it("register valid state with 1 sec timeout", async () => {
-    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, "1", "0xDEADBEEF", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "4", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sigs = [await sign(state.encode(), participants[0]), await sign(state.encode(), participants[1])];
+    let sigs = [await sign(state.encode(), parts[A]), await sign(state.encode(), parts[B])];
     truffleAssert.eventEmitted(
-      await ad.register(
+      await adj.register(
         params.serialize(),
         state.serialize(),
         sigs,
-        {from: accounts[1]}),
+        {from: parts[A]}),
       'Stored',
       (ev: any) => {
         validStateTimeout = ev.timeout;
@@ -472,37 +456,37 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("a deposits 1 eth into a channel", async () => {
-    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
-    let id = hashAssetHolder(channelID, participants[0]);
+    let params = new Params(app, "1", "0xDEADBEEF", [parts[A], parts[B]]);
+    let channelID = params.channelID();
+    let id = fundingID(channelID, parts[A]);
     truffleAssert.eventEmitted(
-      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[1]}),
+      await ah.deposit(id, ether(1), {value: ether(1), from: parts[A]}),
       'Deposited',
       (ev: any) => {return ev.fundingID == id; }
     );
   });
 
   it("b deposits 1 eth into a channel", async () => {
-    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
-    let id = hashAssetHolder(channelID, participants[1]);
+    let params = new Params(app, "1", "0xDEADBEEF", [parts[A], parts[B]]);
+    let channelID = params.channelID();
+    let id = fundingID(channelID, parts[B]);
     truffleAssert.eventEmitted(
-      await ah.deposit(id, ether(1), {value: ether(1), from: accounts[2]}),
+      await ah.deposit(id, ether(1), {value: ether(1), from: parts[B]}),
       'Deposited',
       (ev: any) => { return ev.fundingID == id; }
     );
   });
 
   it("progress with invalid signature fails", async () => {
-    await Sleep(1000);
-    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    await sleep(1000);
+    let params = new Params(app, "1", "0xDEADBEEF", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sig = await sign(state.encode(), participants[0]);
+    let sig = await sign(state.encode(), parts[A]);
     await truffleAssert.reverts(
-      ad.progress(
+      adj.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -510,19 +494,19 @@ contract("Adjudicator", async (accounts) => {
         state.serialize(),
         1,
         sig,
-        {from: accounts[1]})
+        {from: parts[A]})
     );
   });
 
   it("progress with correct state succeeds", async () => {
-    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    let params = new Params(app, "1", "0xDEADBEEF", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     let outcome = new Allocation([asset], [[ether(1).toString(), ether(1).toString()]], []);
     let state = new State(channelID, "5", outcome, "0x00", false);
     let stateHash = hash(state.encode());
-    let sig = await sign(state.encode(), participants[0]);
+    let sig = await sign(state.encode(), parts[A]);
     truffleAssert.eventEmitted(
-      await ad.progress(
+      await adj.progress(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
@@ -530,7 +514,7 @@ contract("Adjudicator", async (accounts) => {
         state.serialize(),
         0,
         sig,
-        {from: accounts[1]}),
+        {from: parts[A]}),
       'Stored',
       (ev: any) => {
         validStateTimeout = ev.timeout;
@@ -541,16 +525,16 @@ contract("Adjudicator", async (accounts) => {
   });
 
   it("conclude from progressed challenge after timeout", async () => {
-    await Sleep(2000);
-    let params = new Params(app, "1", "0xDEADBEEF", [participants[0], participants[1]]);
-    let channelID = hash(params.encode());
+    await sleep(2000);
+    let params = new Params(app, "1", "0xDEADBEEF", [parts[A], parts[B]]);
+    let channelID = params.channelID();
     truffleAssert.eventEmitted(
-      await ad.concludeChallenge(
+      await adj.concludeChallenge(
         params.serialize(),
         validState.serialize(),
         validStateTimeout,
         FORCEMOVE,
-        {from: accounts[1]}),
+        {from: parts[A]}),
       'PushOutcome',
       (ev: any) => {
         return ev.channelID == channelID;
